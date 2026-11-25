@@ -1,0 +1,11 @@
+type,label,color
+boards,City boards,#000000
+sci,"Campuses: science, tech & business",#1565c0
+arts,"Campuses: arts, humanities & social",#ad1457
+libraries,Libraries,#00796b
+student,"Student life: restos, homes & sport",#6d4c41
+museums,Museums & exhibitions,#2e7d32
+stages,"Theatres, concert halls & cinemas",#5e35b1
+startups,Startup hubs & coworking,#d84315
+research,Research & science park,#827717
+makers,Makerspaces & hackerspaces,#455a64
