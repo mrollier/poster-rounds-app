@@ -70,10 +70,12 @@ function render() {
   const c = campaign();
   if (!c) {
     $("next").innerHTML = "<p>No active campaign. The organiser can set one to active in the sheet.</p>";
+    $("sheet").classList.remove("booting");
     return;
   }
   $("campaign-name").textContent = `Campaign: ${c.name}`;
-  $("modes").innerHTML = seg("mode", [["all", "Everything left"], ["way", "On my way"], ["zones", "Zones"]], view.mode);
+  $("sheet").classList.remove("booting");
+  $("modes").querySelector(`input[value="${view.mode}"]`).checked = true;
   setHome(settings.home);
   renderSync();
   const all = stops(), kept = all.filter(passes);
@@ -87,7 +89,7 @@ function renderAll(kept) {
   const plan = planAll(kept, allOrder, start, home, filterKey());
   if (plan.saved !== allOrder) { allOrder = plan.saved; store.set("allOrder", allOrder); }
   const left = plan.route.filter(s => !done(s)).length;
-  $("mode-box").innerHTML = `<div class="mode-line"><span><b>${left}</b> to do, nearest first from ${homeLabel()}</span>
+  $("mode-box").innerHTML = `<div class="mode-line"><span><b>${left}</b> to do, from ${homeLabel()}</span>
     <button type="button" class="btn small" data-ui="replan">Re-plan from here</button></div>`;
   renderRoute({ kept, route: plan.route, extra: plan.extra, scope: kept, start, end: home, endLabel: "home",
     travel: filters.travel, heading: (k, n) => `Next stop · ${k} of ${n}`, linkLimit: 12,
@@ -167,8 +169,9 @@ function renderRoute(o) {
     + (o.linkLimit < remaining.length ? `<span class="muted">Later parts appear as you tick stops off.</span>` : "");
 
   $("list-title").textContent = o.title;
-  $("stops").innerHTML = o.route.map((s, i) => rowHtml(s, i + 1, eta.get(s) ?? null, o.travel)).join("")
-    + o.extra.map(s => rowHtml(s, "✓", null, o.travel)).join("");
+  // The list (up to ~200 rows) is only built while it's visible: keeps the phone quick.
+  $("stops").innerHTML = listVisible() ? o.route.map((s, i) => rowHtml(s, i + 1, eta.get(s) ?? null, o.travel)).join("")
+    + o.extra.map(s => rowHtml(s, "✓", null, o.travel)).join("") : "";
 
   // Pins: the trip's stops numbered; other open stops small (in "On my way", so they can be an end).
   const pos = new Map(o.route.map((s, i) => [s, i + 1]));
@@ -342,15 +345,50 @@ function renderSync() {
   $("sync-btn").setAttribute("aria-label", `${n} change${n === 1 ? "" : "s"} waiting to sync. Tap to try now.`);
 }
 
-// The sheet shows just the next stop ("peek") or, opened, the stats and the whole list.
-function setSheet(open) {
-  $("sheet-more").hidden = !open;
-  $("sheet-toggle").setAttribute("aria-expanded", String(open));
-  $("sheet-toggle-text").textContent = open ? "Hide the list" : "Show all stops";
-  $("sheet").classList.toggle("open", open);
+// ---------- Bottom sheet: peek (the next stop), half, full ----------
+// Tap the handle to open or close the list; drag it to any height and it snaps to the nearest of the three.
+
+let snap = "peek", peekH = 300, dragged = false;
+const listVisible = () => snap !== "peek" || window.innerWidth >= 900; // desktop: the side panel always shows it
+function setSheet(to) {
+  const wasPeek = snap === "peek";
+  snap = to;
+  $("sheet").dataset.snap = to;
+  $("sheet").classList.remove("dragging");
+  $("sheet-body").style.height = "";
+  $("sheet-more").hidden = to === "peek";
+  $("sheet-toggle").setAttribute("aria-expanded", String(to !== "peek"));
+  $("sheet-toggle-text").textContent = to === "peek" ? "Show all stops" : "Hide the list";
+  if (wasPeek && to !== "peek" && boot) render(); // build the list now that it shows
 }
-$("sheet-toggle").onclick = () => setSheet($("sheet-more").hidden);
-const closeSheet = () => setSheet(false);
+const closeSheet = () => setSheet("peek");
+$("sheet-toggle").onclick = () => { if (!dragged) setSheet(snap === "peek" ? "half" : "peek"); dragged = false; };
+
+$("sheet-toggle").addEventListener("pointerdown", e => {
+  const body = $("sheet-body"), startY = e.clientY, startH = body.offsetHeight;
+  if (snap === "peek") peekH = startH;
+  const full = window.innerHeight - document.querySelector(".bar").getBoundingClientRect().bottom - 8; // up to the bar
+  dragged = false;
+  $("sheet-toggle").setPointerCapture(e.pointerId);
+  const move = ev => {
+    const dy = ev.clientY - startY;
+    if (!dragged && Math.abs(dy) < 8) return; // a tap, not a drag
+    if (!dragged && snap === "peek") { snap = "dragging"; render(); } // build the list as it comes into view
+    dragged = true;
+    $("sheet").classList.add("dragging");
+    $("sheet-more").hidden = false;
+    body.style.height = `${Math.max(120, Math.min(full, startH - dy))}px`;
+  };
+  const up = () => {
+    $("sheet-toggle").removeEventListener("pointermove", move);
+    if (!dragged) return;
+    const h = body.offsetHeight, targets = { peek: peekH, half: window.innerHeight * 0.62, full };
+    setSheet(Object.keys(targets).reduce((a, b) => (Math.abs(targets[b] - h) < Math.abs(targets[a] - h) ? b : a)));
+  };
+  $("sheet-toggle").addEventListener("pointermove", move);
+  $("sheet-toggle").addEventListener("pointerup", up, { once: true });
+  $("sheet-toggle").addEventListener("pointercancel", up, { once: true });
+});
 
 
 // ---------- Results: write locally at once, send in the background ----------
@@ -492,7 +530,9 @@ function useBoot(recentre) {
 }
 
 async function openSettings() {
+  const before = settings;
   ({ settings, boot } = await setup(settings || {}, boot));
+  if (settings === before) return; // cancelled
   save();
   useBoot(true);
   flush();

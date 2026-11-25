@@ -57,8 +57,8 @@ export function nextCardHtml(s, heading, { travel = "bike", finished = null } = 
     <div class="addr">${esc(p.address)} · ${plural(p.posters, "poster")} ·
       <span class="${p.access === "ask" ? "ask" : ""}">${accessText(p)}</span></div>
     ${p.notes ? `<div class="stop-notes">${esc(p.notes)}</div>` : ""}
-    <a class="go" href="${gmapsUrl(p, { mode: travel })}" target="_blank" rel="noopener">Navigate</a>
-    <div class="go-row">${btn("posted", p.place_id, "Posted ✓", "go posted")}${btn("nope", p.place_id, "Not possible ✗", "go nope")}</div>
+    <div class="go-row"><a class="go" href="${gmapsUrl(p, { mode: travel })}" target="_blank" rel="noopener">Navigate</a>
+      ${btn("posted", p.place_id, "Posted ✓", "go posted")}${btn("nope", p.place_id, "Not possible ✗", "go nope")}</div>
   </div>`;
 }
 

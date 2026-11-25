@@ -5,6 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <meta name="theme-color" content="#000000">
   <title>Poster map</title>
+  <link rel="preconnect" href="https://tile.openstreetmap.org" crossorigin>
   <link rel="manifest" href="manifest.webmanifest">
   <link rel="icon" href="icons/favicon-32.png" sizes="32x32">
   <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
@@ -19,7 +20,11 @@
   <div id="map" role="application" aria-label="Map of poster places"></div>
 
   <header class="bar">
-    <div id="modes" class="seg modes" role="radiogroup" aria-label="Route"></div>
+    <div id="modes" class="seg modes" role="radiogroup" aria-label="Route">
+      <label><input type="radio" name="mode" value="all"><span>Everything left</span></label>
+      <label><input type="radio" name="mode" value="way"><span>On my way</span></label>
+      <label><input type="radio" name="mode" value="zones"><span>Zones</span></label>
+    </div>
     <button type="button" id="filter-btn" class="icon-btn" aria-label="Filters and travel mode">
       <svg viewBox="0 0 24 24" width="24" height="24" aria-hidden="true"><path d="M3 5h18l-7 8v6l-4 2v-8z" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linejoin="round"/></svg>
     </button>
@@ -27,7 +32,7 @@
   </header>
   <button type="button" id="sync-btn" class="sync-btn" hidden></button>
 
-  <section id="sheet" class="sheet" aria-label="Stops">
+  <section id="sheet" class="sheet booting" aria-label="Stops">
     <!-- Sits on the top edge of the sheet, over the map: location messages and the follow-me button. -->
     <div class="map-tools">
       <button type="button" id="add-btn" class="add-btn">+ Add place</button>
@@ -94,6 +99,7 @@
 
     <p id="setup-error" class="error" role="alert" hidden></p>
     <button type="submit" class="btn primary" id="setup-go">Continue</button>
+    <button type="button" class="btn" id="setup-cancel" hidden>Cancel</button>
   </form>
 
   <!-- Filters: what to include in every route, and how you travel. -->

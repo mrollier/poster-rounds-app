@@ -60,6 +60,9 @@ export function setup(settings, saved = null) {
   $("home-clear").onclick = () => { home = null; showHome(); };
 
   return new Promise(resolve => {
+    // Cancel (Settings only): close without changing anything.
+    $("setup-cancel").hidden = !editing;
+    $("setup-cancel").onclick = () => { form.hidden = true; setHome(settings.home); resolve({ settings, boot: saved }); };
     form.onsubmit = async e => {
       e.preventDefault();
       const name = $("f-name").value.trim(), code = $("f-code").value.trim();
