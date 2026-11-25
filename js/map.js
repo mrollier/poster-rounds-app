@@ -25,17 +25,21 @@ const pinIcon = (color, text, cls = "") => L.divIcon({
   html: `<div class="pin ${cls}" style="background:${color}">${esc(text)}</div>`,
 });
 
-// places: [{place, prio}], types: {type: {label, color}}
-export function drawPlaces(items, types) {
+// pins: [{lat, lon, color, label, cls, title, popup (HTML), z}]. Redrawn only when something changed,
+// so a popup you are reading doesn't close every time the app checks for news.
+let lastPins = "";
+export function drawPins(pins) {
+  const sig = JSON.stringify(pins);
+  if (sig === lastPins) return;
+  lastPins = sig;
   placesLayer.clearLayers();
-  for (const { place: p, prio } of items) {
-    const t = types[p.type] || { label: p.type, color: "#444" };
-    L.marker([+p.lat, +p.lon], { icon: pinIcon(t.color, prio), title: p.name, zIndexOffset: (4 - prio) * 100 })
-      .bindPopup(`<b>${esc(p.name)}</b><br>${esc(p.address)}<br>${esc(t.label)} · priority ${prio}<br>
-        ${esc(p.posters)} poster${p.posters == 1 ? "" : "s"}, ${p.access === "ask" ? "ask first" : "hang freely"}`)
-      .addTo(placesLayer);
+  for (const p of pins) {
+    L.marker([p.lat, p.lon], { icon: pinIcon(p.color, p.label, p.cls), title: p.title, zIndexOffset: p.z || 0 })
+      .bindPopup(p.popup, { minWidth: 220 }).addTo(placesLayer);
   }
 }
+
+export const closePopup = () => map.closePopup();
 
 export function setHome(home) {
   homeMarker?.remove();

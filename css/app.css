@@ -104,3 +104,82 @@ button, input, select { font: inherit; color: inherit; }
   display: grid; place-items: center; font: 700 14px/1 system-ui, sans-serif; box-shadow: 0 0 0 2px #fff;
 }
 .pin.home { background: var(--hivis); color: var(--ink); border-radius: 6px; font-size: 18px; }
+
+/* ---------- Sheet: toggle, next-stop card, stats, list ---------- */
+.sheet-toggle {
+  display: flex; flex-direction: column; align-items: center; gap: 4px; width: 100%; min-height: 44px;
+  margin: -6px 0 6px; padding: 0; border: 0; background: none; font-weight: 700; font-size: .92rem; cursor: pointer;
+}
+.grip { width: 44px; height: 5px; border-radius: 3px; background: var(--ink); }
+.sheet.open .sheet-body { max-height: 85dvh; }
+@media (min-width: 900px) { .sheet-toggle { display: none; } #sheet-more[hidden] { display: block !important; } }
+
+/* The hi-vis card: the stop to do now. */
+.next { background: var(--hivis); border: 3px solid var(--ink); border-radius: 8px; padding: 10px 12px 12px; }
+.next.finished { background: var(--paper); }
+.next-head { font-size: .85rem; font-weight: 700; text-transform: uppercase; letter-spacing: .03em; }
+.next .what { font-size: 1.2rem; font-weight: 800; line-height: 1.2; margin: 2px 0; }
+.next .addr { font-size: .95rem; }
+.ask { font-weight: 800; text-decoration: underline; }
+.next a.go {
+  display: flex; align-items: center; justify-content: center; min-height: 52px; margin-top: 10px;
+  background: var(--ink); color: var(--hivis); border-radius: 6px; text-decoration: none; font-weight: 800; font-size: 1.1rem;
+}
+.go-row { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 8px; }
+.go-row button {
+  min-height: 52px; border: 3px solid var(--ink); border-radius: 6px; background: var(--paper);
+  font-weight: 800; font-size: 1.05rem; cursor: pointer;
+}
+.go-row .nope { color: var(--warn); border-color: var(--warn); }
+
+.stats { display: flex; gap: 20px; flex-wrap: wrap; margin: 14px 0 0; font-variant-numeric: tabular-nums; }
+.stats b { display: block; font-size: 1.3rem; }
+.stats small { color: var(--grey); }
+.sheet h2 { font-size: 1rem; margin: 16px 0 6px; }
+
+ol.stops { list-style: none; margin: 0; padding: 0; border-top: 2px solid var(--ink); }
+ol.stops li { display: grid; grid-template-columns: 40px 1fr; gap: 0 10px; padding: 10px 0; border-bottom: 1px solid var(--ink); }
+.badge {
+  width: 36px; height: 36px; border-radius: 50%; display: grid; place-items: center; color: #fff;
+  font-weight: 700; border: 2px solid var(--ink);
+}
+.stop-name { font-weight: 700; }
+.stop-meta, .stop-notes { font-size: .92rem; color: var(--grey); }
+.stop-notes { color: var(--ink); margin-top: 2px; }
+.res { font-weight: 700; font-size: .92rem; margin-top: 4px; }
+.res.bad { color: var(--warn); }
+.own-note { font-size: .92rem; margin-top: 2px; padding-left: 8px; border-left: 4px solid var(--hivis); }
+.acts { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; margin-top: 6px; }
+.acts select, .acts button {
+  min-height: 44px; padding: 0 8px; border: 2px solid var(--ink); border-radius: 6px; background: var(--paper);
+  font-size: .92rem; font-weight: 700; cursor: pointer;
+}
+.acts a { display: inline-flex; align-items: center; min-height: 44px; font-weight: 700; font-size: .92rem; color: var(--ink); }
+li.is-done .stop-name, li.is-done .stop-meta { text-decoration: line-through; color: var(--done); }
+li.is-done .badge { background: var(--done) !important; }
+li.is-failed .badge { background: var(--warn) !important; }
+li.is-later .badge { border-style: dashed; }
+
+/* ---------- Pins and popups ---------- */
+.pin.faded { opacity: .55; }
+.pin.later { border-style: dashed; }
+.pop { font-size: 15px; line-height: 1.35; }
+.pop-btns { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+.popbtn {
+  display: inline-flex; align-items: center; min-height: 44px; padding: 0 12px; border: 2px solid var(--ink);
+  border-radius: 6px; background: var(--hivis); color: var(--ink) !important; font-weight: 700; font-size: 15px;
+  text-decoration: none; cursor: pointer;
+}
+.popbtn.alt { background: var(--paper); }
+
+/* ---------- Sync indicator and dialog ---------- */
+.sync-btn {
+  flex: none; min-height: 40px; padding: 0 10px; border: 2px solid var(--warn); border-radius: 20px;
+  background: var(--paper); color: var(--warn); font-weight: 700; font-size: .85rem; cursor: pointer;
+}
+.dlg { border: 3px solid var(--ink); border-radius: 10px; padding: 16px; width: min(92vw, 420px); }
+.dlg::backdrop { background: rgba(0, 0, 0, .45); }
+.dlg p { margin: 0 0 12px; font-weight: 700; }
+.dlg input { width: 100%; min-height: var(--tap); padding: 8px 10px; border: 2px solid var(--ink); border-radius: 6px; font-size: 1.1rem; }
+.dlg-btns { display: flex; flex-direction: row-reverse; gap: 8px; margin-top: 14px; }
+.dlg-btns .btn { flex: 1; }

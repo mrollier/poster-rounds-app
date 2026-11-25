@@ -89,3 +89,22 @@ export function setup(settings, saved = null) {
     };
   });
 }
+
+// Ask a question in the app's own dialog (big buttons, works the same on every phone).
+// With `value` there is a text box (a number box when value is a number): resolves the typed text.
+// Without: resolves true. Cancel / Escape resolves null.
+export function ask(msg, { value = null, ok = "OK", cancel = "Cancel" } = {}) {
+  const d = $("dlg"), inp = $("dlg-in");
+  $("dlg-msg").textContent = msg;
+  inp.hidden = value === null;
+  inp.type = typeof value === "number" ? "number" : "text";
+  inp.inputMode = typeof value === "number" ? "numeric" : "text";
+  inp.value = value ?? "";
+  $("dlg-ok").textContent = ok;
+  $("dlg-no").textContent = cancel;
+  d.returnValue = "";
+  d.showModal();
+  if (value !== null) inp.select();
+  return new Promise(resolve => d.addEventListener("close", () =>
+    resolve(d.returnValue === "ok" ? (value === null ? true : inp.value) : null), { once: true }));
+}

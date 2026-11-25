@@ -58,3 +58,23 @@ export const isDone = status => !!status && status !== "later";
 export const cycleFor = (place, boardCycle) => (place.type === "boards" ? boardCycle : "");
 
 export const resultKey = r => `${r.campaign_id}|${r.place_id}|${r.cycle || ""}`;
+
+// ---------- Google Maps links (spec §4.9) ----------
+
+const GMODE = { bike: "bicycling", walk: "walking" };
+
+// Where to send Google Maps: places matched to the official address register navigate by address
+// (Google finds the entrance); hand-placed or approximate pins navigate to the exact pin.
+// A plain {lat, lon} point (home, my position, a bike spot) always goes by coordinates.
+export function navTarget(p) {
+  if (p.location_source === "basisregisters" && p.address) return `${p.address}, ${p.city}, Belgium`;
+  return `${p.lat},${p.lon}`;
+}
+
+// One directions link. Without an origin, Google Maps starts from where the phone is.
+export function gmapsUrl(dest, { origin = null, waypoints = [], mode = "bike" } = {}) {
+  const q = new URLSearchParams({ api: "1", destination: navTarget(dest), travelmode: GMODE[mode] || mode });
+  if (origin) q.set("origin", navTarget(origin));
+  if (waypoints.length) q.set("waypoints", waypoints.map(navTarget).join("|"));
+  return "https://www.google.com/maps/dir/?" + q;
+}

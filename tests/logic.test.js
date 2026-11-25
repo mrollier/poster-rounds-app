@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { priority, cycleStart, brusselsToday, isDone, cycleFor } from "../js/logic.js";
+import { priority, cycleStart, brusselsToday, isDone, cycleFor, gmapsUrl } from "../js/logic.js";
 import { readTab } from "./csv.js";
 
 const places = readTab("places");
@@ -54,4 +54,14 @@ test("isDone and cycleFor", () => {
   assert.equal(isDone("closed"), true);
   assert.equal(cycleFor({ type: "boards" }, "2026-12-04"), "2026-12-04");
   assert.equal(cycleFor({ type: "sci" }, "2026-12-04"), "");
+});
+
+test("gmapsUrl: register addresses by name, other pins by coordinates", () => {
+  const reg = { address: "Sint-Salvatorstraat 5", city: "Gent", lat: "51.06", lon: "3.72", location_source: "basisregisters" };
+  const osm = { address: "x", city: "Gent", lat: "51.05", lon: "3.71", location_source: "osm" };
+  const u = new URL(gmapsUrl(reg, { origin: { lat: 51, lon: 3.7 }, waypoints: [osm], mode: "walk" }));
+  assert.equal(u.searchParams.get("destination"), "Sint-Salvatorstraat 5, Gent, Belgium");
+  assert.equal(u.searchParams.get("origin"), "51,3.7");
+  assert.equal(u.searchParams.get("waypoints"), "51.05,3.71");
+  assert.equal(u.searchParams.get("travelmode"), "walking");
 });
