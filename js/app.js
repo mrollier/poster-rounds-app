@@ -560,3 +560,6 @@ $("menu-btn").onclick = openSettings;
 
 if (settings?.code && boot) { useBoot(true); refresh(true); startLocation(); }
 else openSettings().then(startLocation);
+
+// Offline support (sw.js). Browsers allow this only on https:// and localhost.
+if ("serviceWorker" in navigator) navigator.serviceWorker.register("sw.js").catch(() => { /* app still works online */ });

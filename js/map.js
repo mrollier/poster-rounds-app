@@ -10,7 +10,9 @@ let map, placesLayer, homeMarker;
 export function initMap(el) {
   map = L.map(el, { zoomControl: false, attributionControl: true }).setView([51.0543, 3.7174], 13);
   L.control.zoom({ position: "topright" }).addTo(map);
-  L.tileLayer(CONFIG.TILE_URL, { maxZoom: 19, attribution: CONFIG.TILE_ATTRIBUTION }).addTo(map);
+  // crossOrigin: fetch tiles as CORS images, so the service worker can store them compactly for offline use
+  // (other ways, browsers count every stored tile as several MB).
+  L.tileLayer(CONFIG.TILE_URL, { maxZoom: 19, attribution: CONFIG.TILE_ATTRIBUTION, crossOrigin: "anonymous" }).addTo(map);
   placesLayer = L.layerGroup().addTo(map);
   return map;
 }
