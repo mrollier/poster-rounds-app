@@ -53,3 +53,34 @@ export function pickPoint() {
     });
   });
 }
+
+// ---------- Me: blue dot, accuracy circle, follow-me ----------
+
+let meDot, meCircle, following = false;
+
+// The blue dot lives in its own pane above the pins, so it is never hidden under a stop.
+// The accuracy circle stays below the pins, so it never blocks a tap on one.
+function mePane() {
+  if (!map.getPane("me")) map.createPane("me").style.zIndex = 650; // pins 600, popups 700
+  return "me";
+}
+
+export function setMe(pos) {
+  if (!pos) return;
+  const ll = [pos.lat, pos.lon];
+  if (!meDot) {
+    meCircle = L.circle(ll, { radius: pos.accuracy, color: "#1a73e8", weight: 1, fillOpacity: 0.12, interactive: false }).addTo(map);
+    meDot = L.circleMarker(ll, { pane: mePane(), radius: 9, color: "#fff", weight: 3, fillColor: "#1a73e8", fillOpacity: 1 })
+      .bindPopup("You are here").addTo(map);
+  }
+  meDot.setLatLng(ll);
+  meCircle.setLatLng(ll).setRadius(pos.accuracy);
+  if (following) map.setView(ll, Math.max(map.getZoom(), 16)); // also zooms in on the first fix
+}
+
+// Follow-me: keep the map centred on the blue dot. Dragging the map yourself switches it off.
+export function setFollow(on, pos) {
+  following = on;
+  if (on && pos) map.setView([pos.lat, pos.lon], Math.max(map.getZoom(), 16));
+}
+export function onUserPan(cb) { map.on("dragstart", cb); }

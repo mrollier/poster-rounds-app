@@ -1,6 +1,7 @@
 // Entry point: loads saved settings, runs the setup when needed, and draws the map.
 import { store, bootstrap, BackendError } from "./data.js";
-import { initMap, showCity, drawPlaces, setHome, esc } from "./map.js";
+import { initMap, showCity, drawPlaces, setHome, setMe, setFollow, onUserPan, esc } from "./map.js";
+import { watchWhileVisible, restartWatching, lastPosition } from "./location.js";
 import { setup, toast, $ } from "./ui.js";
 import { priority } from "./logic.js";
 
@@ -52,7 +53,47 @@ async function refresh() {
   }
 }
 
+// ---------- Live location ----------
+
+const LOW_ACCURACY = 100; // metres: above this, say the blue dot may be off
+let follow = false, locationStarted = false;
+
+function locMessage(text, { bad = false, retry = false } = {}) {
+  $("loc-msg").hidden = !text;
+  $("loc-msg").classList.toggle("bad", bad);
+  $("loc-text").textContent = text;
+  $("loc-retry").hidden = !retry;
+}
+
+function startLocation() {
+  if (locationStarted) return;
+  locationStarted = true;
+  locMessage("Finding your location…");
+  setTimeout(() => { if (!lastPosition() && !$("loc-msg").classList.contains("bad"))
+    locMessage("No location fix yet. Step outside or wait a moment."); }, 15000);
+  watchWhileVisible(pos => {
+    setMe(pos);
+    locMessage(pos.accuracy > LOW_ACCURACY ? `Low accuracy (±${pos.accuracy} m): the blue dot may be off.` : "");
+  }, (code, msg) => {
+    if (code === 2 && lastPosition()) return; // a short GPS hiccup: keep showing the last position
+    locMessage(msg, { bad: true, retry: code === 1 });
+  });
+}
+
+function setFollowing(on) {
+  follow = on;
+  $("follow-btn").setAttribute("aria-pressed", String(on));
+  setFollow(on, lastPosition());
+  if (on && !lastPosition()) locMessage("Waiting for your location…");
+}
+$("follow-btn").onclick = () => setFollowing(!follow);
+onUserPan(() => { if (follow) setFollowing(false); }); // panning by hand means "let me look around"
+$("loc-hide").onclick = () => locMessage("");
+$("loc-retry").onclick = () => { locMessage("Finding your location…"); restartWatching(); };
+
+// ---------- Start ----------
+
 $("menu-btn").onclick = openSettings;
 
-if (settings?.code && boot) { show(true); refresh(); }
-else openSettings();
+if (settings?.code && boot) { show(true); refresh(); startLocation(); }
+else openSettings().then(startLocation);

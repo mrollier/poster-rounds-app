@@ -18,7 +18,24 @@
   </header>
 
   <section id="sheet" class="sheet" aria-label="Stops">
-    <div id="summary"></div>
+    <!-- Sits on the top edge of the sheet, over the map: location messages and the follow-me button. -->
+    <div class="map-tools">
+      <div id="loc-msg" class="loc-msg" role="status" aria-live="polite" hidden>
+        <span id="loc-text"></span>
+        <span class="loc-acts">
+          <button type="button" id="loc-retry" class="link-btn" hidden>Try again</button>
+          <button type="button" id="loc-hide" class="link-btn">Hide</button>
+        </span>
+      </div>
+      <button type="button" id="follow-btn" class="icon-btn follow" aria-pressed="false" aria-label="Follow my location">
+        <svg viewBox="0 0 24 24" width="26" height="26" aria-hidden="true"><circle cx="12" cy="12" r="4" fill="currentColor"/>
+          <circle cx="12" cy="12" r="8" fill="none" stroke="currentColor" stroke-width="2"/>
+          <path d="M12 1v4M12 19v4M1 12h4M19 12h4" stroke="currentColor" stroke-width="2"/></svg>
+      </button>
+    </div>
+    <div class="sheet-body">
+      <div id="summary"></div>
+    </div>
   </section>
 
   <div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
