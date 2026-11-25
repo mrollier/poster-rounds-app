@@ -11,14 +11,14 @@ const clock = iso => new Date(iso).toLocaleTimeString("en-GB", { hour: "2-digit"
 const btn = (act, id, label, cls = "") => `<button type="button" class="${cls}" data-act="${act}" data-id="${esc(id)}">${label}</button>`;
 
 // Pin colour: the type's colour while to do; grey when posted; red when it failed (refused, full, …).
-export function pinOf(s, label) {
+export function pinOf(s, label, extraButtons = "") {
   const st = statusOf(s);
   return {
     lat: +s.place.lat, lon: +s.place.lon, label, title: s.place.name,
     color: FAILED.includes(st) ? "#b00020" : isDone(st) ? "#8a8a8a" : s.type.color,
     cls: isDone(st) ? "faded" : st === "later" ? "later" : "",
     z: isDone(st) ? -1000 : (4 - s.prio) * 100,
-    popup: popupHtml(s),
+    popup: popupHtml(s, extraButtons),
   };
 }
 
@@ -32,7 +32,7 @@ function resultLine(s) {
     ${r.note ? `<div class="own-note">${esc(r.note)}</div>` : ""}`;
 }
 
-function popupHtml(s) {
+function popupHtml(s, extraButtons) {
   const p = s.place, st = statusOf(s);
   return `<div class="pop"><b>${esc(p.name)}</b><br>${esc(p.address)}<br>
     ${esc(s.type.label)} · priority ${s.prio}<br>${plural(p.posters, "poster")}, ${accessText(p)}
@@ -40,12 +40,16 @@ function popupHtml(s) {
     <div class="pop-btns">${isDone(st)
       ? btn("undo", p.place_id, "Undo ↺", "popbtn alt")
       : btn("posted", p.place_id, "Posted ✓", "popbtn") + btn("nope", p.place_id, "Not possible ✗", "popbtn alt")}
-      <a class="popbtn alt" href="${gmapsUrl(p)}" target="_blank" rel="noopener">Navigate</a></div></div>`;
+      <a class="popbtn alt" href="${gmapsUrl(p)}" target="_blank" rel="noopener">Navigate</a>${extraButtons}</div></div>`;
 }
 
-// The big yellow card at the bottom: the stop to do now.
-export function nextCardHtml(s, heading) {
-  if (!s) return `<div class="next finished"><b>Nothing left to do with these filters.</b></div>`;
+// The big yellow card at the bottom: the stop to do now. `finished`: {text, label, url} when nothing is left.
+export function nextCardHtml(s, heading, { travel = "bike", finished = null } = {}) {
+  if (!s) {
+    const f = finished || { text: "Nothing left to do with these filters." };
+    return `<div class="next finished"><b>${esc(f.text)}</b>
+      ${f.url ? `<a class="go" href="${f.url}" target="_blank" rel="noopener">${esc(f.label)}</a>` : ""}</div>`;
+  }
   const p = s.place;
   return `<div class="next">
     <div class="next-head">${esc(heading)}${statusOf(s) === "later" ? " (come back later)" : ""}</div>
@@ -53,13 +57,13 @@ export function nextCardHtml(s, heading) {
     <div class="addr">${esc(p.address)} · ${plural(p.posters, "poster")} ·
       <span class="${p.access === "ask" ? "ask" : ""}">${accessText(p)}</span></div>
     ${p.notes ? `<div class="stop-notes">${esc(p.notes)}</div>` : ""}
-    <a class="go" href="${gmapsUrl(p)}" target="_blank" rel="noopener">Navigate</a>
+    <a class="go" href="${gmapsUrl(p, { mode: travel })}" target="_blank" rel="noopener">Navigate</a>
     <div class="go-row">${btn("posted", p.place_id, "Posted ✓", "go posted")}${btn("nope", p.place_id, "Not possible ✗", "go nope")}</div>
   </div>`;
 }
 
 // One row of the list: badge, name, details, result, and the result menu / note / undo.
-export function rowHtml(s, label) {
+export function rowHtml(s, label, eta = null, travel = "bike") {
   const p = s.place, st = statusOf(s);
   const cls = st === "posted" ? "is-done" : FAILED.includes(st) ? "is-done is-failed" : st === "later" ? "is-later" : "";
   const options = [["", "No result yet"], ...Object.entries(STATUS_LABEL)]
@@ -70,19 +74,49 @@ export function rowHtml(s, label) {
       <div class="stop-name">${esc(p.name)}</div>
       <div class="stop-meta">${esc(p.address)} · ${plural(p.posters, "poster")} ·
         <span class="${p.access === "ask" ? "ask" : ""}">${accessText(p)}</span></div>
+      ${eta === null ? "" : `<div class="stop-meta">About ${eta} min from now</div>`}
       ${p.notes ? `<div class="stop-notes">${esc(p.notes)}</div>` : ""}
       ${resultLine(s)}
       <div class="acts">
         <select data-act="status" data-id="${esc(p.place_id)}" aria-label="Result for ${esc(p.name)}">${options}</select>
         ${btn("note", p.place_id, s.res?.note ? "Edit note" : "Add note")}
         ${st ? btn("undo", p.place_id, "Undo ↺", "undo") : ""}
-        <a href="${gmapsUrl(p)}" target="_blank" rel="noopener">Directions</a>
+        <a href="${gmapsUrl(p, { mode: travel })}" target="_blank" rel="noopener">Directions</a>
       </div>
     </div>
   </li>`;
 }
 
-export function statsHtml({ done, total, hung, planned }) {
-  return [[`${done}/${total}`, "stops done"], [`${hung}/${planned}`, "posters hung"]]
-    .map(([b, t]) => `<div><b>${b}</b><small>${t}</small></div>`).join("");
+// stats: [[big text, small text], …]
+export const statsHtml = stats => stats.map(([b, t]) => `<div><b>${esc(b)}</b><small>${esc(t)}</small></div>`).join("");
+
+// Segmented control (radio buttons that look like one bar of buttons). options: [[value, label]].
+export const seg = (name, options, current) => options.map(([v, l]) =>
+  `<label><input type="radio" name="${name}" value="${esc(v)}" ${String(v) === String(current) ? "checked" : ""}><span>${esc(l)}</span></label>`).join("");
+
+// Google Maps links for a trip cut into parts. links: [{from, to, url}], `last` = label of the trip's end.
+export function linksHtml(links, endLabel, total) {
+  return links.map(l => {
+    const toEnd = endLabel && l.to === total;
+    const last = toEnd ? l.to - 1 : l.to; // the trip's end isn't a numbered stop
+    const range = l.from === last ? `stop ${l.from}` : `stops ${l.from}–${last}`;
+    const text = toEnd && l.from === l.to ? `Google Maps: ${endLabel}`
+      : `Google Maps: ${range}${toEnd ? `, then ${endLabel}` : ""}`;
+    return `<a class="btn" href="${l.url}" target="_blank" rel="noopener">${esc(text)}</a>`;
+  }).join("");
 }
+
+// One zone in the zones list.
+export function zoneRowHtml(z) {
+  const left = z.total - z.done;
+  return `<li class="${left ? "" : "is-done"}"><div class="badge square" style="background:${z.color}">${left ? z.number : "✓"}</div>
+    <div><div class="stop-name">${esc(z.name)}</div>
+      <div class="stop-meta">${z.total > 1 ? `${left}/${z.total} stops to do · walking loop about ${z.mins} min`
+        : `Single stop · ${esc(z.stops[0]?.place.address || "")}`}</div>
+      <div class="acts"><button type="button" data-ui="zone-open" data-zone="${esc(z.id)}">Open</button></div></div></li>`;
+}
+
+// The list of types in the filter, with colour, count and a tick when included.
+export const typesHtml = (types, counts, skip) => types.filter(t => counts[t.type]).map(t =>
+  `<label><input type="checkbox" value="${esc(t.type)}" ${skip.has(t.type) ? "" : "checked"}>
+    <span class="swatch" style="background:${esc(t.color)}"></span><span>${esc(t.label)} <small>${counts[t.type]}</small></span></label>`).join("");

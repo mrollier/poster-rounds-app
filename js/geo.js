@@ -5,9 +5,10 @@ export const DETOUR = 1.3;
 export const SPEED_KMH = { bike: 15, walk: 4.5 };
 
 // Straight-line distance in metres (haversine formula: distance over the earth's surface).
+// Works on places straight from the sheet too (lat/lon as text): the + turns text into numbers.
 export function hav(a, b) {
-  const r = Math.PI / 180, dLa = (b.lat - a.lat) * r, dLo = (b.lon - a.lon) * r;
-  const h = Math.sin(dLa / 2) ** 2 + Math.cos(a.lat * r) * Math.cos(b.lat * r) * Math.sin(dLo / 2) ** 2;
+  const r = Math.PI / 180, la1 = +a.lat * r, la2 = +b.lat * r, dLa = la2 - la1, dLo = (+b.lon - +a.lon) * r;
+  const h = Math.sin(dLa / 2) ** 2 + Math.cos(la1) * Math.cos(la2) * Math.sin(dLo / 2) ** 2;
   return 2 * 6371000 * Math.asin(Math.sqrt(h));
 }
 

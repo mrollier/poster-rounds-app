@@ -78,3 +78,16 @@ export function gmapsUrl(dest, { origin = null, waypoints = [], mode = "bike" } 
   if (waypoints.length) q.set("waypoints", waypoints.map(navTarget).join("|"));
   return "https://www.google.com/maps/dir/?" + q;
 }
+
+// Phones' Google Maps takes at most 3 waypoints + a destination per link, so longer trips are cut into
+// parts of 4. The first part starts wherever the phone is; each next part starts at the previous end.
+// Returns [{from, to, url}] with from/to as 1-based positions in `targets`.
+export function chunkLinks(targets, mode, per = 4) {
+  const out = [];
+  for (let i = 0; i < targets.length; i += per) {
+    const part = targets.slice(i, i + per);
+    out.push({ from: i + 1, to: i + part.length,
+      url: gmapsUrl(part[part.length - 1], { origin: i ? targets[i - 1] : null, waypoints: part.slice(0, -1), mode }) });
+  }
+  return out;
+}

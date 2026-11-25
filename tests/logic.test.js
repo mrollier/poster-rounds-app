@@ -65,3 +65,15 @@ test("gmapsUrl: register addresses by name, other pins by coordinates", () => {
   assert.equal(u.searchParams.get("waypoints"), "51.05,3.71");
   assert.equal(u.searchParams.get("travelmode"), "walking");
 });
+
+test("chunkLinks: 3 waypoints + destination per link, each part starts where the last ended", async () => {
+  const { chunkLinks } = await import("../js/logic.js");
+  const pts = Array.from({ length: 9 }, (_, i) => ({ lat: 51, lon: i }));
+  const links = chunkLinks(pts, "bike");
+  assert.deepEqual(links.map(l => [l.from, l.to]), [[1, 4], [5, 8], [9, 9]]);
+  const second = new URL(links[1].url).searchParams;
+  assert.equal(second.get("origin"), "51,3");
+  assert.equal(second.get("waypoints"), "51,4|51,5|51,6");
+  assert.equal(second.get("destination"), "51,7");
+  assert.equal(new URL(links[0].url).searchParams.get("origin"), null);
+});

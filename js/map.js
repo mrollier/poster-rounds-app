@@ -88,3 +88,62 @@ export function setFollow(on, pos) {
   if (on && pos) map.setView([pos.lat, pos.lon], Math.max(map.getZoom(), 16));
 }
 export function onUserPan(cb) { map.on("dragstart", cb); }
+
+// ---------- Route line and zones ----------
+
+let routeLine = null, zonesLayer = null, lastZones = "";
+
+// A dashed line through the trip, so you can see the order at a glance. points: [{lat, lon}] or null.
+export function drawRoute(points) {
+  routeLine?.remove();
+  routeLine = points && points.length > 1
+    ? L.polyline(points.map(p => [+p.lat, +p.lon]), { color: "#000", weight: 3, opacity: .7, dashArray: "6 8", interactive: false }).addTo(map)
+    : null;
+}
+
+// Zoom the map so all these points fit (used when you switch mode or open a zone, not on every tick).
+// The bar and the sheet cover part of the map, so leave room for them.
+export function fitTo(points) {
+  if (!points.length) return;
+  const sheet = document.getElementById("sheet").getBoundingClientRect(), side = sheet.width < window.innerWidth;
+  map.fitBounds(L.latLngBounds(points.map(p => [+p.lat, +p.lon])), {
+    paddingTopLeft: [side ? sheet.width + 30 : 30, 80], paddingBottomRight: [60, side ? 30 : Math.min(sheet.height, window.innerHeight * .45) + 20], maxZoom: 16 });
+}
+
+// Zones overview: each zone's stops as soft dark patches, and a numbered square badge in the middle.
+// zones: [{id, number, name, centre, stops: [{lat, lon, color, done}], done, total, mins}], onOpen(id)
+export function drawZones(zones, onOpen) {
+  const sig = JSON.stringify(zones);
+  if (zonesLayer && sig === lastZones) return;
+  lastZones = sig;
+  zonesLayer?.remove();
+  zonesLayer = null;
+  if (!zones) return;
+  zonesLayer = L.layerGroup().addTo(map);
+  for (const z of zones) {
+    const open = () => onOpen(z.id), finished = z.done === z.total;
+    if (z.total === 1) { // a single stop is just a pin
+      const s = z.stops[0];
+      L.marker([s.lat, s.lon], { icon: pinIcon(s.done ? "#8a8a8a" : s.color, "", s.done ? "faded" : ""), title: z.name })
+        .on("click", open).addTo(zonesLayer);
+      continue;
+    }
+    for (const s of z.stops) {
+      L.circle([s.lat, s.lon], { radius: 70, stroke: false, fillColor: "#1f2933", fillOpacity: s.done ? .05 : .16 }).on("click", open).addTo(zonesLayer);
+      L.circleMarker([s.lat, s.lon], { radius: 5, weight: 1, color: "#000", fillColor: s.done ? "#bbb" : s.color, fillOpacity: 1 })
+        .on("click", open).addTo(zonesLayer);
+    }
+    L.marker([z.centre.lat, z.centre.lon], {
+      zIndexOffset: finished ? 0 : 2000, title: `${z.number}. ${z.name}: ${z.done}/${z.total} done, about ${z.mins} min`,
+      icon: L.divIcon({ className: "", iconSize: [30, 30], iconAnchor: [15, 15],
+        html: `<div class="pin zonepin${finished ? " faded" : ""}" style="background:${z.color}">${finished ? "✓" : z.number}</div>
+               <span class="zonelbl">${esc(z.name)}<small>${z.done ? `${z.done}/${z.total} done` : `${z.total} stops`} · ${z.mins} min</small></span>` }),
+    }).on("click", open).addTo(zonesLayer);
+  }
+}
+
+// Zone names only from zoom 15: further out they would cover each other.
+export function zoneLabelsFromZoom(z) {
+  const toggle = () => map.getContainer().classList.toggle("show-zlbl", map.getZoom() >= z);
+  map.on("zoomend", toggle); toggle();
+}

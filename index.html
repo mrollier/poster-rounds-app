@@ -13,10 +13,13 @@
   <div id="map" role="application" aria-label="Map of poster places"></div>
 
   <header class="bar">
-    <div class="bar-title"><b>Poster map</b> <span id="campaign-name"></span></div>
-    <button type="button" id="sync-btn" class="sync-btn" hidden></button>
+    <div id="modes" class="seg modes" role="radiogroup" aria-label="Route"></div>
+    <button type="button" id="filter-btn" class="icon-btn" aria-label="Filters and travel mode">
+      <svg viewBox="0 0 24 24" width="24" height="24" aria-hidden="true"><path d="M3 5h18l-7 8v6l-4 2v-8z" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linejoin="round"/></svg>
+    </button>
     <button type="button" id="menu-btn" class="icon-btn" aria-label="Settings">☰</button>
   </header>
+  <button type="button" id="sync-btn" class="sync-btn" hidden></button>
 
   <section id="sheet" class="sheet" aria-label="Stops">
     <!-- Sits on the top edge of the sheet, over the map: location messages and the follow-me button. -->
@@ -38,11 +41,14 @@
       <button type="button" id="sheet-toggle" class="sheet-toggle" aria-expanded="false" aria-controls="sheet-more">
         <span class="grip" aria-hidden="true"></span><span id="sheet-toggle-text">Show all stops</span>
       </button>
+      <div id="mode-box" class="mode-box"></div>
       <div id="next"></div>
       <div id="sheet-more" hidden>
         <div id="stats" class="stats"></div>
+        <div id="links" class="btns links"></div>
         <h2 id="list-title">Stops</h2>
         <ol id="stops" class="stops"></ol>
+        <p class="muted" id="campaign-name"></p>
       </div>
     </div>
   </section>
@@ -82,6 +88,22 @@
     <p id="setup-error" class="error" role="alert" hidden></p>
     <button type="submit" class="btn primary" id="setup-go">Continue</button>
   </form>
+
+  <!-- Filters: what to include in every route, and how you travel. -->
+  <dialog id="filters" class="dlg filters" aria-labelledby="filters-title">
+    <form method="dialog">
+      <h2 id="filters-title">Filters</h2>
+      <fieldset><legend>How you travel</legend><div id="f-travel" class="seg"></div></fieldset>
+      <fieldset><legend>Priority</legend><div id="f-prio" class="seg"></div></fieldset>
+      <fieldset>
+        <legend id="types-sum">Types of place</legend>
+        <div class="btns"><button type="button" class="btn" id="types-all">Include all</button>
+          <button type="button" class="btn" id="types-none">Skip all</button></div>
+        <div id="f-types" class="types"></div>
+      </fieldset>
+      <div class="dlg-btns"><button value="ok" class="btn primary">Done</button></div>
+    </form>
+  </dialog>
 
   <!-- One dialog for every question (how many posters, a note, a reason). -->
   <dialog id="dlg" class="dlg">
