@@ -3,7 +3,7 @@
 export const CONFIG = {
   // The Apps Script web-app URL (Deploy > Manage deployments, ends in /exec).
   // On port 8787 the app talks to the local mock backend instead (node tests/mock-server.js).
-  APPS_SCRIPT_URL: location.port === "8787" ? "/exec" : "PASTE_YOUR_APPS_SCRIPT_URL_HERE",
+  APPS_SCRIPT_URL: location.port === "8787" ? "/exec" : "https://script.google.com/macros/s/AKfycbz2OdJfkKGAYyrwUiM1fqDzsIXVYUMOwVwSm38iH5rZnglcqRndjoAY_xytRt9nMsZU/exec",
 
   // Base map tiles. OSM's own server is fine for a handful of volunteers (OSM tile usage policy).
   // Alternative if needed: "https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png" with
