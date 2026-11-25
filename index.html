@@ -24,6 +24,7 @@
   <section id="sheet" class="sheet" aria-label="Stops">
     <!-- Sits on the top edge of the sheet, over the map: location messages and the follow-me button. -->
     <div class="map-tools">
+      <button type="button" id="add-btn" class="add-btn">+ Add place</button>
       <div id="loc-msg" class="loc-msg" role="status" aria-live="polite" hidden>
         <span id="loc-text"></span>
         <span class="loc-acts">
@@ -102,6 +103,33 @@
         <div id="f-types" class="types"></div>
       </fieldset>
       <div class="dlg-btns"><button value="ok" class="btn primary">Done</button></div>
+    </form>
+  </dialog>
+
+  <!-- Add a place found on the street. -->
+  <dialog id="add-dlg" class="dlg add" aria-labelledby="add-title">
+    <form method="dialog" id="add-form" novalidate>
+      <h2 id="add-title">Add a place</h2>
+      <p id="add-where" class="hint"></p>
+      <label for="a-name">Name</label>
+      <input id="a-name" maxlength="100" required>
+      <label for="a-type">Type of place</label>
+      <select id="a-type"></select>
+      <label for="a-tags">Audience tags</label>
+      <input id="a-tags" maxlength="120" autocapitalize="none" spellcheck="false">
+      <p class="hint" id="a-tags-hint"></p>
+      <fieldset><legend>Importance</legend><div class="seg" id="a-imp"></div></fieldset>
+      <fieldset><legend>Ask first, or hang freely?</legend><div class="seg" id="a-access"></div></fieldset>
+      <label for="a-posters">How many posters fit</label>
+      <input id="a-posters" type="number" inputmode="numeric" min="1" max="10" value="1">
+      <label for="a-notes">Notes (optional)</label>
+      <input id="a-notes" maxlength="300" placeholder="e.g. notice board left of the entrance">
+      <p id="a-prio" class="a-prio"></p>
+      <p id="a-error" class="error" role="alert" hidden></p>
+      <div class="dlg-btns">
+        <button value="ok" class="btn primary" id="a-save">Save place</button>
+        <button value="cancel" class="btn" formnovalidate>Cancel</button>
+      </div>
     </form>
   </dialog>
 

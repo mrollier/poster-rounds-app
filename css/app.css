@@ -19,6 +19,9 @@ button, input, select { font: inherit; color: inherit; }
 /* Map fills the screen; bar and sheet float over it. */
 #map { position: fixed; inset: 0; }
 #map.picking { cursor: crosshair; }
+/* While picking a point, pins let taps through: tapping on a pin then picks that spot. */
+#map.picking .leaflet-marker-pane, #map.picking .leaflet-overlay-pane, #map.picking .leaflet-me-pane { pointer-events: none; }
+#map.picking .leaflet-marker-pane *, #map.picking .leaflet-overlay-pane * { pointer-events: none !important; }
 .leaflet-container { font: inherit; }
 .leaflet-top { top: calc(var(--bar) + env(safe-area-inset-top)); }
 
@@ -236,3 +239,16 @@ details.way legend, details.way label { font-weight: 700; font-size: .9rem; marg
 }
 .zonelbl small { display: block; font-weight: 400; }
 .show-zlbl .zonelbl { display: block; }
+
+/* ---------- Add a place ---------- */
+.add-btn {
+  margin-right: auto; min-height: 48px; padding: 0 14px; border: 2px solid var(--ink); border-radius: 24px;
+  background: var(--paper); font-weight: 800; box-shadow: 0 2px 6px rgba(0,0,0,.3); cursor: pointer;
+}
+.dlg.add { width: min(96vw, 520px); max-height: 92dvh; }
+.dlg.add h2 { margin: 0 0 4px; }
+.dlg.add label, .dlg.add legend { display: block; font-weight: 700; margin: 12px 0 4px; padding: 0; }
+.dlg.add fieldset { border: 0; padding: 0; margin: 0; }
+.dlg.add select { width: 100%; min-height: var(--tap); padding: 8px; border: 2px solid var(--ink); border-radius: 6px; background: var(--paper); }
+.a-prio { font-weight: 700; margin: 12px 0 0; }
+.dlg .hint { font-weight: 400; margin: 4px 0 0; }

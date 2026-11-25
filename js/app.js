@@ -9,6 +9,7 @@ import { mergeResults, withPending, createQueue } from "./sync.js";
 import { dist } from "./geo.js";
 import { tripTime } from "./routes.js";
 import { planAll, computeWayIds, planWay, zonesNow, zoneState, byId, done } from "./modes.js";
+import { addPlace } from "./addplace.js";
 import { pinOf, nextCardHtml, rowHtml, statsHtml, seg, linksHtml, zoneRowHtml, typesHtml } from "./views.js";
 
 initMap($("map"));
@@ -358,7 +359,15 @@ const queue = createQueue({
   load: () => store.get("queue", []),
   save: items => store.set("queue", items),
   send: body => postWrite(settings.code, settings.name, body),
-  onSent: (item, reply) => { mergeResults(synced.map, [reply.result]); saveResults(); render(); },
+  onSent: (item, reply) => {
+    if (item.body.action === "addPlace") { // the new place, with its id from the sheet: show it right away
+      boot.places.push(reply.place); save();
+      toast(`"${reply.place.name}" is added. The others see it next time their app refreshes.`);
+    } else {
+      mergeResults(synced.map, [reply.result]); saveResults();
+    }
+    render();
+  },
   onRefused: (item, e) => { toast(`A change could not be saved: ${e.message}`); render(); },
 });
 
@@ -429,6 +438,16 @@ $("stops").addEventListener("change", async e => {
 });
 $("sync-btn").onclick = flush;
 
+$("add-btn").onclick = async () => {
+  closePopup(); closeSheet();
+  const body = await addPlace({ types: boot.types, campaign: campaign() });
+  if (!body) return;
+  // ponytail: if the answer is lost after the sheet saved the place, a retry adds it twice; delete the copy in the sheet.
+  queue.add(body);
+  toast(navigator.onLine ? "Saving the place…" : "Saved on this phone; it will be sent when you're back online.");
+  flush();
+};
+
 // ---------- Polling: see the other volunteers' ticks ----------
 
 let polling = false;
@@ -450,8 +469,11 @@ async function poll() {
   }
   if (queue.items.length) flush();
 }
-setInterval(poll, 30000);
-document.addEventListener("visibilitychange", poll);
+// Results every 30 s; everything (so also places other volunteers added) every 5 minutes and when the
+// app comes back on screen.
+let ticks = 0;
+setInterval(() => (++ticks % 10 === 0 ? refresh() : poll()), 30000);
+document.addEventListener("visibilitychange", () => { if (!document.hidden && settings?.code) refresh(); });
 window.addEventListener("focus", poll);
 window.addEventListener("online", flush);
 
@@ -477,7 +499,7 @@ async function openSettings() {
 }
 
 // Fetch fresh data in the background; the saved copy is already on screen.
-async function refresh() {
+async function refresh(loud = false) { // loud: say so when offline (only at start, not every 5 minutes)
   try {
     boot = await bootstrap(settings.code, settings.campaign);
     settings.campaign = boot.campaign_id;
@@ -486,7 +508,8 @@ async function refresh() {
     flush();
   } catch (e) {
     if (!(e instanceof BackendError)) throw e;
-    toast(e.offline ? "Offline: showing the data saved on this phone." : e.message);
+    if (e.offline) { if (loud) toast("Offline: showing the data saved on this phone."); }
+    else toast(e.message);
     if (e.stop) openSettings(); // the team code was changed: ask for the new one
   }
 }
@@ -535,5 +558,5 @@ $("loc-retry").onclick = () => { locMessage("Finding your location…"); restart
 
 $("menu-btn").onclick = openSettings;
 
-if (settings?.code && boot) { useBoot(true); refresh(); startLocation(); }
+if (settings?.code && boot) { useBoot(true); refresh(true); startLocation(); }
 else openSettings().then(startLocation);

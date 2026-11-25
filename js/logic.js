@@ -91,3 +91,15 @@ export function chunkLinks(targets, mode, per = 4) {
   }
   return out;
 }
+
+// ---------- Adding a place (spec §5) ----------
+
+// Default audience tags per type of place, to pre-fill the form. The volunteer can change them.
+export const TYPE_TAGS = {
+  boards: "general", sci: "students-science", arts: "students-arts", libraries: "general",
+  student: "students-general", museums: "culture", stages: "culture", startups: "entrepreneurs",
+  research: "researchers entrepreneurs", makers: "makers students-science",
+};
+
+// The tags a campaign knows: its "w:<tag>" weight columns.
+export const campaignTags = campaign => Object.keys(campaign).filter(k => k.startsWith("w:")).map(k => k.slice(2));
