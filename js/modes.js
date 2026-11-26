@@ -1,30 +1,14 @@
-// The three route modes as "plans" the screen can draw. Works on stops: {place, prio, type, res}.
+// The planned modes (On my way, Zones) as "plans" the screen can draw. Works on stops: {place, stars, type, res}.
+// (All left has no plan: it just sorts by distance, in app.js.)
 // Each mode remembers its result on the phone and only recalculates when its inputs change,
 // so the order doesn't jump around while you are cycling.
-import { orderStops, computeWay, buildZones } from "./routes.js";
+import { computeWay, buildZones } from "./routes.js";
 import { isDone } from "./logic.js";
 
 export const statusOf = s => s.res?.status || "";
 export const done = s => isDone(statusOf(s));
 const idsOf = stops => stops.map(s => s.place.place_id);
 const byId = stops => new Map(stops.map(s => [s.place.place_id, s]));
-
-// ---------- Everything left ----------
-
-// saved: {key, ids} from last time. Recalculated when a stop to do is missing from the saved order
-// (a filter changed, a new place, an undo) or when `force` (the "Re-plan from where I am" button).
-export function planAll(kept, saved, start, home, key, force = false) {
-  const todo = kept.filter(s => !done(s));
-  let ids = saved?.key === key ? saved.ids : null;
-  const known = new Set(ids || []);
-  if (force || !ids || todo.some(s => !known.has(s.place.place_id))) {
-    const order = orderStops(start, todo.map(s => s.place), home);
-    ids = order.map(p => p.place_id);
-  }
-  const all = byId(kept), route = ids.map(id => all.get(id)).filter(Boolean);
-  const inRoute = new Set(ids);
-  return { saved: { key, ids }, route, extra: kept.filter(s => !inRoute.has(s.place.place_id)) };
-}
 
 // ---------- On my way ----------
 

@@ -10,7 +10,7 @@ changes needed for that.
 - A map of every poster place for the current campaign, coloured by type, with **importance stars** (★★☆)
   for the kind of event you plan for: AI Safety, Animal Welfare, Music or Poetry.
 - Three ways to plan a round:
-  - **All left:** all stops still to do, in a short order from where you are.
+  - **All left:** every stop still to do on the map (no route); the card is the nearest one to you.
   - **On my way:** stops that fit an extra-time budget on a trip from A to B.
   - **Zones:** park the bike, walk a loop, bike on.
 - **Posted ✓ / Can't ✗ / Undo**, shared with the team through the sheet. Ticks show at once and are sent
@@ -117,8 +117,8 @@ Add a row to the **Campaigns** tab:
 ### Importance stars and kinds of event
 
 The **Types** tab has one column per kind of event, e.g. `ev:Music`, with a weight 0–3 per type of place:
-how well that type of place reaches that audience. Stars per place = **weight × the place's importance**
-(1–3 in Places): 6 or more is ★★★, 3–5 is ★★, 1–2 is ★. Types with weight 0 are left out of that kind of
+how well that type of place reaches that audience. Stars per place = **the lower of the weight and the
+place's importance** (1–3 in Places): ★★★ means the right audience *and* a great spot. Types with weight 0 are left out of that kind of
 event's preset in Filters; a volunteer can still tick them, and they then count as weight 1.
 
 - **A new kind of event** (say Climate): add a column `ev:Climate` to Types and fill in 0–3 per type.
@@ -157,10 +157,10 @@ event's preset in Filters; a volunteer can still tick them, and they then count 
 - **Distances** for ordering the stops are straight-line × 1.3, at 15 km/h by bike and 4.5 km/h on foot, plus
   3 min per city board and 5 min per other stop: quick, and no network needed. The **lines on the map** and
   **navigation** use real routes from the FOSSGIS route server (free, no key; fine for a handful of volunteers).
-  Offline you get a dashed straight line instead. All left and On my way follow your Bike / On foot choice in
+  Offline you get a dashed straight line instead. On my way follows your Bike / On foot choice in
   Filters; a zone's loop is walked, and "Bike to the P" is biked.
 - **Navigation** shows distance and time, not turn-by-turn instructions; use the small Google Maps link for those.
-- **Orders are per phone.** All left, On my way and Zones are remembered on each phone; only results and
+- **Orders are per phone.** On my way and Zones are remembered on each phone; only results and
   places are shared.
 - **Sync:** results are fetched every 30 s and when the app comes back on screen; places every 5 minutes. When
   two people change the same stop, the later change wins.

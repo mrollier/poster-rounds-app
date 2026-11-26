@@ -6,9 +6,9 @@ import { watchWhileVisible, restartWatching, lastPosition } from "./location.js"
 import { setup, toast, ask, $ } from "./ui.js";
 import { stars, eventTypes, eventWeights, cycleStart, brusselsToday, cycleFor, resultKey, STATUS_LABEL, chunkLinks } from "./logic.js";
 import { mergeResults, withPending, createQueue } from "./sync.js";
-import { dist } from "./geo.js";
+import { dist, minutes } from "./geo.js";
 import { tripTime } from "./routes.js";
-import { planAll, computeWayIds, planWay, zonesNow, zoneState, byId, done } from "./modes.js";
+import { computeWayIds, planWay, zonesNow, zoneState, byId, done } from "./modes.js";
 import { addPlace } from "./addplace.js";
 import { startNav, stopNav, navUpdate, navigating, navTarget, onNavChange } from "./nav.js";
 import { pinOf, nextCardHtml, rowHtml, statsHtml, seg, linksHtml, zoneRowHtml, typesHtml } from "./views.js";
@@ -58,7 +58,6 @@ function origin() {
 const view = { mode: "all", zone: null, zgap: 600, ztime: 60, ...store.get("view", {}) };
 if (!["all", "way", "zones"].includes(view.mode)) view.mode = "all";
 const filters = { min: "1", skip: [], skipFor: null, event: null, travel: "bike", ...store.get("filters", {}) };
-let allOrder = store.get("allOrder", null);              // Everything left: {key, ids}
 let way = { budget: 15, ...store.get("way", {}) };       // On my way: {from, to, budget, ids, extra, direct}
 let zonesSaved = store.get("zones", null);               // Zones: {key, zones}
 let fitted = "";                                         // re-zoom the map only when the view changes
@@ -104,19 +103,40 @@ function render() {
   if (view.mode === "way") renderWay(kept); else renderAll(kept);
 }
 
+// All left: no route, just every open stop on the map. The card is the nearest stop to where you are,
+// and the list runs from near to far. It re-sorts as you move (see startLocation: every 50 m).
 function renderAll(kept) {
-  const start = origin(), home = settings.home || null;
-  const plan = planAll(kept, allOrder, start, home, filterKey());
-  if (plan.saved !== allOrder) { allOrder = plan.saved; store.set("allOrder", allOrder); }
-  const left = plan.route.filter(s => !done(s)).length;
-  $("mode-box").innerHTML = `<div class="mode-line"><span><b>${left}</b> to do, from ${homeLabel()}</span>
-    <button type="button" class="btn small" data-ui="replan">Re-plan from here</button></div>`;
-  renderRoute({ kept, route: plan.route, extra: plan.extra, scope: kept, start, end: home, endLabel: "home",
-    travel: filters.travel, heading: (k, n) => `Next stop · ${k} of ${n}`, linkLimit: 12,
-    title: "All left, in order", finished: home
-      ? { text: "All stops done. On to home!", label: "Navigate home", dest: { ...home, name: "home" } }
-      : { text: "All stops done with these filters. Well done!" },
-    fitKey: JSON.stringify(["all", filterKey()]) });
+  const from = origin(), home = settings.home || null;
+  routeTravel = filters.travel;
+  finishedDest = home ? { ...home, name: "home" } : null;
+  const away = s => dist(from, s.place);
+  const open = kept.filter(s => !done(s)).sort((a, b) => away(a) - away(b));
+  const doneOnes = kept.filter(done);
+  // A stop marked "come back later" waits until nothing else is left.
+  const next = open.find(s => !s.res?.status) || open[0] || null;
+
+  $("mode-box").innerHTML = `<div class="mode-line"><span><b>${open.length}</b> to do · nearest to ${homeLabel()}</span></div>`;
+  $("next").innerHTML = nextCardHtml(next, `Nearest stop · ${open.length} left`, { travel: filters.travel,
+    finished: home ? { text: "All stops done. On to home!", label: "Navigate home", dest: finishedDest }
+      : { text: "All stops done with these filters. Well done!" } });
+  if (!navigating()) $("mini").textContent = next ? `${distText(away(next))} · ${next.place.name}` : "All stops done";
+
+  $("stats").innerHTML = statsHtml([
+    [`${doneOnes.length}/${kept.length}`, "stops done"],
+    [`${kept.reduce((n, s) => n + (s.res?.status === "posted" ? +s.res.posters || 0 : 0), 0)}`, "posters hung"],
+    [`${open.length}`, "left"],
+  ]);
+  $("links").innerHTML = "";
+  $("list-title").textContent = "All left, nearest first";
+  const mins = s => Math.round(minutes(away(s), filters.travel));
+  $("stops").innerHTML = listVisible() ? open.map(s => rowHtml(s, `${s.stars}★`, mins(s), filters.travel)).join("")
+    + doneOnes.map(s => rowHtml(s, "✓", null, filters.travel)).join("") : "";
+
+  drawPins(kept.map(s => done(s) ? { ...pinOf(s, ""), cls: "faded" } : pinOf(s, `${s.stars}★`)));
+  if (!navigating()) drawRoute(null);
+  const key = JSON.stringify(["all", filterKey()]);
+  // Zoom to you and your nearest 15 stops: all of them would zoom out to the harbour and beyond.
+  if (key !== fitted) { fitted = key; fitTo([from, ...open.slice(0, 15).map(s => s.place)]); }
 }
 
 // Re-drawing the sheet would close a settings panel you just opened: keep it open (except that the
@@ -148,7 +168,7 @@ function renderWay(kept) {
     clearRoute(kept, s => wayButtons(s));
     return;
   }
-  renderRoute({ kept, route: plan.route, extra: [], scope: plan.route, start: way.from, end: way.to, endLabel: "your destination",
+  renderRoute({ kept, route: plan.route, scope: plan.route, start: way.from, end: way.to, endLabel: "your destination",
     travel: filters.travel, heading: (k, n) => `Next stop on your way · ${k} of ${n}`, linkLimit: 99,
     title: "Stops on the way, in order", showOthers: true, pinExtra: wayButtons,
     endPins: [{ ...way.from, label: "A" }, { ...way.to, label: "B" }],
@@ -194,8 +214,7 @@ function renderRoute(o) {
 
   $("list-title").textContent = o.title;
   // The list (up to ~200 rows) is only built while it's visible: keeps the phone quick.
-  $("stops").innerHTML = listVisible() ? o.route.map((s, i) => rowHtml(s, i + 1, eta.get(s) ?? null, o.travel)).join("")
-    + o.extra.map(s => rowHtml(s, "✓", null, o.travel)).join("") : "";
+  $("stops").innerHTML = listVisible() ? o.route.map((s, i) => rowHtml(s, i + 1, eta.get(s) ?? null, o.travel)).join("") : "";
 
   // Pins: the trip's stops numbered; other open stops small (in "On my way", so they can be an end).
   const pos = new Map(o.route.map((s, i) => [s, i + 1]));
@@ -276,7 +295,7 @@ function renderZone(kept, z) {
     ${single ? "" : `<button type="button" class="btn bike" data-ui="nav-park">Bike to the P${z.rack ? " (bike rack)" : ""}</button>`}`;
   drawZones(null);
   const park = { ...z.park, label: "P" };
-  renderRoute({ kept, route: z.stops, extra: [], scope: z.stops, start: single ? origin() : park, end: single ? null : park,
+  renderRoute({ kept, route: z.stops, scope: z.stops, start: single ? origin() : park, end: single ? null : park,
     fromBikeSpot: !single,
     endLabel: "back to the P", travel: single ? filters.travel : "walk",
     heading: (k, n) => (single ? `Single stop · ${z.name}` : `Stop ${k} of ${n} · ${z.name}`), linkLimit: 99,
@@ -350,11 +369,6 @@ $("sheet").addEventListener("click", e => {
   const el = e.target.closest("[data-ui]");
   if (!el) return;
   const ui = el.dataset.ui;
-  if (ui === "replan") {
-    if (!lastPosition()) toast(`No location yet: planned from ${homeLabel()}.`);
-    allOrder = planAll(stops().filter(passes), null, origin(), settings.home || null, filterKey(), true).saved;
-    store.set("allOrder", allOrder); fitted = ""; render();
-  }
   if (ui === "way") wayEnd(el.dataset.end, el.dataset.how);
   if (ui === "recalc") setWay({});
   if (ui === "zone-open") openZone(el.dataset.zone);

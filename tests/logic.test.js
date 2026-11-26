@@ -6,10 +6,10 @@ import { readTab } from "./csv.js";
 const places = readTab("places");
 const types = readTab("types");
 
-test("stars on the seed data: AI Safety gives about the old priorities (53 / 56 / 89)", () => {
+test("stars on the seed data: 3★ stays rare (only the right audience at a great spot)", () => {
   const w = eventWeights(types, "AI Safety"), count = { 0: 0, 1: 0, 2: 0, 3: 0 };
   places.forEach(p => count[stars(p, w)]++);
-  assert.deepEqual(count, { 0: 0, 1: 89, 2: 56, 3: 53 });
+  assert.deepEqual(count, { 0: 0, 1: 100, 2: 83, 3: 15 });
 });
 
 test("event types come from the ev: columns of the Types tab", () => {
@@ -19,14 +19,17 @@ test("event types come from the ev: columns of the Types tab", () => {
   assert.equal(eventWeights(types, "Music").stages, 3);
 });
 
-test("stars: weight × importance; a type outside the preset counts as weight 1", () => {
-  const w = { a: 3, b: 1, c: 0 };
-  assert.equal(stars({ type: "a", importance: "2" }, w), 3); // 3 × 2 = 6
-  assert.equal(stars({ type: "b", importance: "3" }, w), 2); // 1 × 3 = 3
-  assert.equal(stars({ type: "b", importance: "1" }, w), 1);
-  assert.equal(stars({ type: "c", importance: "3" }, w), 2); // ticked by hand: 1 × 3
-  assert.equal(stars({ type: "zzz", importance: "1" }, w), 1);
+test("stars: the lower of type weight and importance; a type outside the preset counts as weight 1", () => {
+  const w = { a: 3, b: 1, c: 0, d: 2 };
+  assert.equal(stars({ type: "a", importance: "3" }, w), 3); // right audience, great spot
+  assert.equal(stars({ type: "a", importance: "2" }, w), 2);
+  assert.equal(stars({ type: "d", importance: "3" }, w), 2); // great spot, so-so audience
+  assert.equal(stars({ type: "b", importance: "3" }, w), 1); // great spot, wrong audience
+  assert.equal(stars({ type: "c", importance: "3" }, w), 1); // ticked by hand: weight 1
+  assert.equal(stars({ type: "zzz", importance: "2" }, w), 1);
   assert.equal(stars({ type: "a", importance: "" }, w), 0);  // no importance: hidden
+  assert.equal(stars({ type: "a", importance: "-1" }, w), 0);
+  assert.equal(stars({ type: "a", importance: "7" }, { a: 9 }), 3); // never more than 3
   assert.equal(starText(2), "★★☆");
 });
 

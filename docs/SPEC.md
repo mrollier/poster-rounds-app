@@ -44,14 +44,15 @@ volunteer can switch it in Filters. For that kind of event:
 
 ```
 weight = max(1, Types[place.type]["ev:" + event])      (a type outside the preset counts as 1)
-score  = weight × place.importance                     (importance 1–3 in Places)
-stars  = 3 if score ≥ 6, 2 if score ≥ 3, 1 if score ≥ 1, hidden if 0 (no importance)
+stars  = min(weight, place.importance, 3)              (importance 1–3 in Places; 0 = hidden)
 ```
+
+The lower of the two marks: 3★ needs both the right audience and a great spot, so a busy spot of the
+wrong kind (a music café for a poetry night) never outranks the right kind.
 
 Shown as ★★☆ everywhere; the word "priority" is not used. The **preset** of a kind of event = the
 types with weight > 0: those are ticked in Filters when you pick it, the rest unticked (you can tick
-them by hand). Unit tests: the seed data gives 53 / 56 / 89 places with 3 / 2 / 1 stars for AI Safety
-(close to the old 54 / 56 / 88 priorities).
+them by hand). Unit tests: the seed data gives 15 / 83 / 100 places with 3 / 2 / 1 stars for AI Safety.
 
 ### 2.2 City boards and cleaning cycles
 
@@ -148,8 +149,9 @@ Settings (name, code, home, campaign) are reachable later from a small menu.
 
 Port the algorithms from the prototype (search for the function names):
 
-1. **All left** (`orderStops`, `combined`): all remaining stops, nearest-first + 2-opt,
-   from my position (or home). "Re-plan from here" button.
+1. **All left**: no route. Every open stop is a pin with its stars; the card is the nearest open stop
+   (from my position, else home) and the list runs from near to far. It re-sorts as I move (every 50 m).
+   ("Come back later" stops wait until nothing else is left.)
 2. **On my way** (`computeWay`, `wayVariant`, `updateWay`): from A to B (my position, home, a
    tapped point, or a stop's pin), with an extra-time budget (5/15/30/60 min); cheapest insertion
    until the budget is used.

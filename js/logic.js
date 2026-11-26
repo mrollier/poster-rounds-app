@@ -7,12 +7,15 @@
 export const eventTypes = types => Object.keys(types[0] || {}).filter(k => k.startsWith("ev:")).map(k => k.slice(3));
 export const eventWeights = (types, ev) => Object.fromEntries(types.map(t => [t.type, Number(t["ev:" + ev]) || 0]));
 
-// Stars (1–3) for a place at this kind of event: type weight × the place's own importance (1–3).
-// A type outside the preset (weight 0) that you tick by hand in Filters counts as weight 1.
+// Stars (1–3) for a place at this kind of event: the LOWER of two marks out of 3,
+//   - the type's weight for this event (does this kind of place reach this audience?), and
+//   - the place's own importance (is it a good spot: busy, visible, a real notice board?).
+// So 3★ needs both: a great spot of the wrong kind (a music café for a poetry night) gets no more than its
+// type's weight. A type outside the preset (weight 0) that you tick by hand in Filters counts as weight 1.
 // 0 stars only for a place without importance: it stays hidden.
 export function stars(place, weights) {
-  const score = Math.max(1, weights[place.type] || 0) * (Number(place.importance) || 0);
-  return score >= 6 ? 3 : score >= 3 ? 2 : score >= 1 ? 1 : 0;
+  const fit = Math.max(1, Number(weights[place.type]) || 0);
+  return Math.max(0, Math.min(3, fit, Math.round(Number(place.importance)) || 0));
 }
 export const starText = n => "★".repeat(n) + "☆".repeat(3 - n);
 
