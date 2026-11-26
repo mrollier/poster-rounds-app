@@ -8,15 +8,17 @@ import { hav } from "./geo.js";
 export const eventTypes = types => Object.keys(types[0] || {}).filter(k => k.startsWith("ev:")).map(k => k.slice(3));
 export const eventWeights = (types, ev) => Object.fromEntries(types.map(t => [t.type, Number(t["ev:" + ev]) || 0]));
 
-// Stars (1–3) for a place at this kind of event: the LOWER of two marks out of 3,
-//   - the type's weight for this event (does this kind of place reach this audience?), and
-//   - the place's own importance (is it a good spot: busy, visible, a real notice board?).
-// So 3★ needs both: a great spot of the wrong kind (a music café for a poetry night) gets no more than its
-// type's weight. A type outside the preset (weight 0) that you tick by hand in Filters counts as weight 1.
+// Stars (1–3) for a place at this kind of event. Audience first:
+//   - the type's weight for this event (0–3) sets the stars: does this kind of place reach the people who'd come?
+//   - the place's own importance (1–3) only says whether MANY people pass by. A quiet spot (importance 1)
+//     loses one star; a busy spot of the wrong kind still stays low.
+// A type outside the preset (weight 0) that you tick by hand in Filters counts as weight 1.
 // 0 stars only for a place without importance: it stays hidden.
 export function stars(place, weights) {
-  const fit = Math.max(1, Number(weights[place.type]) || 0);
-  return Math.max(0, Math.min(3, fit, Math.round(Number(place.importance)) || 0));
+  const imp = Math.round(Number(place.importance)) || 0;
+  if (imp < 1) return 0;
+  const fit = Math.min(3, Math.max(1, Number(weights[place.type]) || 0));
+  return imp === 1 && fit > 1 ? fit - 1 : fit;
 }
 export const starText = n => "★".repeat(n) + "☆".repeat(3 - n);
 

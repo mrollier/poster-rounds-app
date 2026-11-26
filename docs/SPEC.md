@@ -43,16 +43,20 @@ that type reaches the event's audience. The kind of event comes from the campaig
 volunteer can switch it in Filters. For that kind of event:
 
 ```
-weight = max(1, Types[place.type]["ev:" + event])      (a type outside the preset counts as 1)
-stars  = min(weight, place.importance, 3)              (importance 1–3 in Places; 0 = hidden)
+weight = clamp(Types[place.type]["ev:" + event], 1, 3)  (a type outside the preset counts as 1)
+stars  = weight − 1 if place.importance = 1 and weight > 1, else weight
+         (importance 1–3 in Places; 0 or empty = hidden)
 ```
 
-The lower of the two marks: 3★ needs both the right audience and a great spot, so a busy spot of the
-wrong kind (a music café for a poetry night) never outranks the right kind.
+Audience first: the type's weight sets the stars (do the people who'd come to this event pass by?).
+The place's importance only says whether *many* people pass by: a quiet spot loses one star, a busy
+spot of the wrong kind stays low. City boards have weight 2 for every event, so busy and medium boards
+get 2★ and quiet ones 1★. The weights in the sheet come from a survey of the organiser (Nov 2026):
+about 30 three-star places per event.
 
 Shown as ★★☆ everywhere; the word "priority" is not used. The **preset** of a kind of event = the
 types with weight > 0: those are ticked in Filters when you pick it, the rest unticked (you can tick
-them by hand). Unit tests: the seed data gives 15 / 83 / 100 places with 3 / 2 / 1 stars for AI Safety.
+them by hand). Unit tests: the seed data gives 32 / 42 / 124 places with 3 / 2 / 1 stars for AI Safety.
 
 ### 2.2 City boards and cleaning cycles
 

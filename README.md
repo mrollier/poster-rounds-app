@@ -118,8 +118,9 @@ Add a row to the **Campaigns** tab:
 ### Importance stars and kinds of event
 
 The **Types** tab has one column per kind of event, e.g. `ev:Music`, with a weight 0–3 per type of place:
-how well that type of place reaches that audience. Stars per place = **the lower of the weight and the
-place's importance** (1–3 in Places): ★★★ means the right audience *and* a great spot. Types with weight 0 are left out of that kind of
+how well that type of place reaches that audience. Stars per place = **the weight**, minus one star
+when the place is quiet (importance 1 in Places): ★★★ means the right audience at a spot people
+actually pass. A busy spot of the wrong kind stays low. Types with weight 0 are left out of that kind of
 event's preset in Filters; a volunteer can still tick them, and they then count as weight 1.
 
 - **A new kind of event** (say Climate): add a column `ev:Climate` to Types and fill in 0–3 per type.
@@ -176,7 +177,7 @@ event's preset in Filters; a volunteer can still tick them, and they then count 
 ## Tests
 
 `node --test` covers:
-- stars on the seed data (53 / 56 / 89 for AI Safety) and the event presets;
+- stars on the seed data (32 / 42 / 124 with 3 / 2 / 1 stars for AI Safety) and the event presets;
 - cleaning cycles across month and year boundaries;
 - the route algorithms, and following a route line (navigation);
 - merging results and the offline outbox;

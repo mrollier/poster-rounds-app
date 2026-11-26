@@ -6,10 +6,11 @@ import { readTab } from "./csv.js";
 const places = readTab("places");
 const types = readTab("types");
 
-test("stars on the seed data: 3★ stays rare (only the right audience at a great spot)", () => {
+test("stars on the seed data: 3★ only for the right audience (AI Safety: science campuses, startups, makers)", () => {
   const w = eventWeights(types, "AI Safety"), count = { 0: 0, 1: 0, 2: 0, 3: 0 };
   places.forEach(p => count[stars(p, w)]++);
-  assert.deepEqual(count, { 0: 0, 1: 100, 2: 83, 3: 15 });
+  assert.deepEqual(count, { 0: 0, 1: 124, 2: 42, 3: 32 });
+  assert.ok(places.filter(p => stars(p, w) === 3).every(p => w[p.type] === 3));
 });
 
 test("event types come from the ev: columns of the Types tab", () => {
@@ -19,12 +20,15 @@ test("event types come from the ev: columns of the Types tab", () => {
   assert.equal(eventWeights(types, "Music").stages, 3);
 });
 
-test("stars: the lower of type weight and importance; a type outside the preset counts as weight 1", () => {
+test("stars: the type's fit sets them, a quiet spot loses one; a type outside the preset counts as 1", () => {
   const w = { a: 3, b: 1, c: 0, d: 2 };
-  assert.equal(stars({ type: "a", importance: "3" }, w), 3); // right audience, great spot
-  assert.equal(stars({ type: "a", importance: "2" }, w), 2);
-  assert.equal(stars({ type: "d", importance: "3" }, w), 2); // great spot, so-so audience
-  assert.equal(stars({ type: "b", importance: "3" }, w), 1); // great spot, wrong audience
+  assert.equal(stars({ type: "a", importance: "3" }, w), 3); // right audience, busy spot
+  assert.equal(stars({ type: "a", importance: "2" }, w), 3); // right audience, normal spot
+  assert.equal(stars({ type: "a", importance: "1" }, w), 2); // right audience, quiet spot
+  assert.equal(stars({ type: "d", importance: "3" }, w), 2); // busy spot, so-so audience: not lifted
+  assert.equal(stars({ type: "d", importance: "1" }, w), 1);
+  assert.equal(stars({ type: "b", importance: "3" }, w), 1); // busy spot, wrong audience
+  assert.equal(stars({ type: "b", importance: "1" }, w), 1); // never below 1
   assert.equal(stars({ type: "c", importance: "3" }, w), 1); // ticked by hand: weight 1
   assert.equal(stars({ type: "zzz", importance: "2" }, w), 1);
   assert.equal(stars({ type: "a", importance: "" }, w), 0);  // no importance: hidden

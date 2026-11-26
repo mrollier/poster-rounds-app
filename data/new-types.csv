@@ -1,14 +1,14 @@
 type,label,color,ev:AI Safety,ev:Animal Welfare,ev:Music,ev:Poetry
-bookshops,"Bookshops, book cafés & comics",#7b1fa2,2,2,1,3
-literature,Poetry & literary venues,#4a148c,1,1,2,3
-ideas,"Debate, free thought & adult learning",#01579b,3,2,0,1
-musicvenues,Music cafés & clubs,#ef6c00,1,1,3,2
-musicshops,Record & instrument shops,#c51162,0,1,3,1
-musicschools,Music & arts academies,#880e4f,0,1,3,2
+bookshops,"Bookshops, book cafés & comics",#7b1fa2,1,1,1,3
+literature,Poetry & literary venues,#4a148c,0,0,1,3
+ideas,"Debate, free thought & adult learning",#01579b,2,1,0,1
+musicvenues,Music cafés & clubs,#ef6c00,1,1,3,1
+musicshops,Record & instrument shops,#c51162,0,0,3,0
+musicschools,Music & arts academies,#880e4f,0,0,3,1
 youth,Youth houses & rehearsal spaces,#9e6a00,1,1,3,1
 veggie,Vegetarian & vegan food,#558b2f,1,3,1,1
 organic,"Organic, zero-waste & second-hand shops",#2e5d1f,1,2,0,1
-animalorgs,Animal & nature organisations,#795548,0,3,0,1
-cafes,Cafés & coffee bars,#37474f,2,2,2,2
-community,Neighbourhood & service centres,#00838f,1,1,2,2
-sport,Climbing gyms & yoga studios,#ad5d00,1,2,1,1
+animalorgs,Animal & nature organisations,#795548,0,3,0,0
+cafes,Cafés & coffee bars,#37474f,1,1,2,2
+community,Neighbourhood & service centres,#00838f,1,1,1,2
+sport,Climbing gyms & yoga studios,#ad5d00,1,1,0,0
