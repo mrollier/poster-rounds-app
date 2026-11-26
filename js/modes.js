@@ -2,7 +2,7 @@
 // (All left has no plan: it just sorts by distance, in app.js.)
 // Each mode remembers its result on the phone and only recalculates when its inputs change,
 // so the order doesn't jump around while you are cycling.
-import { computeWay, buildZones } from "./routes.js";
+import { computeWay, buildZones, ZONE_MINUTES } from "./routes.js";
 import { isDone } from "./logic.js";
 
 export const statusOf = s => s.res?.status || "";
@@ -26,24 +26,16 @@ export function planWay(kept, way) {
 
 // ---------- Zones ----------
 
-// saved: {key, zones}. Zones are rebuilt only when the settings or filters change (the key), or on
-// "Rebuild zones": stops being ticked off just fade their zone, they don't reshuffle the map.
-export function zonesNow(kept, saved, key, opts, racks, labels, force = false) {
-  if (!force && saved?.key === key && Array.isArray(saved.zones)) return saved;
-  const zones = buildZones(kept.filter(s => !done(s)).map(s => s.place), opts, racks, labels);
-  return { key, zones };
-}
-
-// Progress colour: dark slate for an untouched zone, fading to light grey as its stops get done.
-export function zoneColor(fraction) {
-  const a = [31, 41, 51], b = [200, 200, 200];
-  return `rgb(${a.map((v, i) => Math.round(v + (b[i] - v) * fraction)).join(",")})`;
+// Zones from all stops that pass the filters, done ones included: ticking stops off doesn't move any
+// border, a finished zone just turns grey. size: "S", "M" or "L". Returns {key, zones}.
+export function zonesNow(kept, key, sectors, size, labels) {
+  return { key, zones: buildZones(kept.map(s => s.place), sectors, ZONE_MINUTES[size] || ZONE_MINUTES.M, labels) };
 }
 
 // A zone with its live stops and progress.
 export function zoneState(z, i, all) {
   const stops = z.ids.map(id => all.get(id)).filter(Boolean);
   const d = stops.filter(done).length;
-  return { ...z, number: i + 1, stops, done: d, total: stops.length, color: zoneColor(stops.length ? d / stops.length : 1) };
+  return { ...z, number: i + 1, stops, done: d, total: stops.length };
 }
 export { idsOf, byId };

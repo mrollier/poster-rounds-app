@@ -2,7 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs";
 import path from "node:path";
-import { orderStops, tripTime, computeWay, buildZones } from "../js/routes.js";
+import { orderStops, tripTime, computeWay, buildZones, sectorOf, zoneOutline, parkFor, ZONE_MINUTES } from "../js/routes.js";
 import { stars, eventWeights } from "../js/logic.js";
 import { readTab, DATA } from "./csv.js";
 
@@ -10,6 +10,7 @@ const places = readTab("places");
 const weights = eventWeights(readTab("types"), "AI Safety");
 const stops = places.filter(p => stars(p, weights) > 0);
 const racks = JSON.parse(fs.readFileSync(path.join(DATA, "racks-gent.json"), "utf8")).racks.map(([lat, lon]) => ({ lat, lon }));
+const sectors = JSON.parse(fs.readFileSync(path.join(DATA, "sectors-gent.json"), "utf8")).sectors;
 const centre = { lat: 51.0543, lon: 3.7174 };
 
 // A fixed "random" shuffle (same every run), so the test can't flake.
@@ -43,24 +44,58 @@ test("computeWay: stays within the extra-time budget", () => {
   assert.ok(computeWay(from, to, stops, 60, "bike").stops.length > computeWay(from, to, stops, 15, "bike").stops.length);
 });
 
-test("buildZones on the seed data: deterministic, every walking loop fits the time", () => {
-  const opts = { gap: 600, maxMin: 60 };
-  const z1 = buildZones(stops, opts, racks, []), z2 = buildZones(stops, opts, racks, []);
-  assert.deepEqual(z1, z2);
-  // With straight line × 1.3 distances (the prototype used a street matrix and got ~74 / 33)
-  assert.equal(z1.length, 61);
-  assert.equal(z1.filter(z => z.ids.length === 1).length, 27);
-  assert.equal(z1.reduce((n, z) => n + z.ids.length, 0), stops.length); // every stop in exactly one zone
-  for (const z of z1) if (z.ids.length > 1) assert.ok(z.mins <= 60, `${z.id} takes ${z.mins} min`);
-  // A smaller walking distance gives more, smaller zones
-  assert.ok(buildZones(stops, { gap: 200, maxMin: 60 }, racks, []).length > z1.length);
+test("sectors-gent.json: the Lambert → GPS conversion puts places in the right sector", () => {
+  const name = p => sectors[sectorOf(p, sectors)].name;
+  assert.equal(name(places.find(p => p.name === "City board Overpoort 6")), "Overpoort");
+  assert.equal(name({ lat: 51.0545, lon: 3.7215 }), "Kuip"); // Korenmarkt, in the old centre ("de Kuip")
 });
 
-test("buildZones: names from the nearest neighbourhood, repeats numbered", () => {
-  const two = [{ place_id: "a", name: "A", lat: 51.05, lon: 3.72, posters: 1, type: "sci" },
-               { place_id: "b", name: "B", lat: 51.0501, lon: 3.7201, posters: 1, type: "sci" },
-               { place_id: "c", name: "C", lat: 51.07, lon: 3.72, posters: 1, type: "sci" },
-               { place_id: "d", name: "D", lat: 51.0701, lon: 3.7201, posters: 1, type: "sci" }];
-  const z = buildZones(two, { gap: 300, maxMin: 60 }, [], [{ name: "Centrum", lat: 51.06, lon: 3.72 }]);
-  assert.deepEqual(z.map(q => q.name).sort(), ["Centrum", "Centrum 2"]);
+test("buildZones on the seed data: deterministic, every stop in one zone, zones near the target size", () => {
+  const z1 = buildZones(stops, sectors, ZONE_MINUTES.M), z2 = buildZones(stops, sectors, ZONE_MINUTES.M);
+  assert.deepEqual(z1, z2);
+  assert.deepEqual(z1.flatMap(z => z.ids).sort(), stops.map(s => s.place_id).sort());
+  // Merged zones stay under target × 1.3, and busy sectors are cut up: only a single stop can be longer.
+  for (const z of z1) if (z.ids.length > 1) assert.ok(z.mins <= ZONE_MINUTES.M * 1.3, `${z.id} takes ${z.mins} min`);
+  const small = buildZones(stops, sectors, ZONE_MINUTES.S), large = buildZones(stops, sectors, ZONE_MINUTES.L);
+  assert.ok(small.length > z1.length && z1.length > large.length, `${small.length} / ${z1.length} / ${large.length}`);
+});
+
+// A 3 × 3 grid of square "sectors", 0.01° apart, named by row and column ("00" … "22").
+const d = x => Math.round(x * 1e5) / 1e5; // like the data file: 5 decimals, so shared corners are equal
+const sq = (r, c) => [[d(51 + r / 100), d(3.7 + c / 100)], [d(51 + r / 100), d(3.71 + c / 100)],
+  [d(51.01 + r / 100), d(3.71 + c / 100)], [d(51.01 + r / 100), d(3.7 + c / 100)]];
+const grid = [0, 1, 2].flatMap(r => [0, 1, 2].map(c => ({ id: `${r}${c}`, rings: [sq(r, c)] })));
+const at = (id, r, c, type = "sci") => ({ place_id: id, name: id, lat: 51.005 + r / 100, lon: 3.705 + c / 100, type });
+
+test("buildZones: only touching sectors merge; an empty sector in between still connects", () => {
+  const row = [0, 1, 2, 3].map(c => ({ id: `0${c}`, rings: [sq(0, c)] })); // 4 squares in a row
+  // 00 and 02 both touch the empty 01, so they merge; 00 and 03 have two empty squares between them.
+  assert.equal(buildZones([at("a", 0, 0), at("b", 0, 2)], row, 999).length, 1);
+  assert.equal(buildZones([at("a", 0, 0), at("b", 0, 3)], row, 999).length, 2);
+  // a small target: nothing merges
+  assert.equal(buildZones([at("a", 0, 0), at("b", 0, 1)], grid, 1).length, 2);
+});
+
+test("buildZones: a sector with too much work is cut in two halfway between its farthest stops", () => {
+  const one = [{ id: "x", name: "X", rings: [sq(0, 0)] }];
+  const st = [at("a", 0, -0.4), at("b", 0, -0.35), at("c", 0, 0.35), at("d", 0, 0.4)];
+  const z = buildZones(st, one, 12); // 4 stops × 5 min > 12 × 1.3: two halves of 2 stops
+  assert.deepEqual(z.map(q => q.ids.sort()).sort(), [["a", "b"], ["c", "d"]]);
+  // the two halves meet at lon 3.705: the cut points are the same, so each half's outline is a closed box
+  for (const q of z) assert.equal(zoneOutline(q.rings).length, 4);
+  assert.ok(z.every(q => q.rings[0].some(p => p[1] === 3.705)));
+});
+
+test("zoneOutline: two squares side by side have 6 border edges (the shared one is inside)", () => {
+  assert.equal(zoneOutline([sq(0, 0)]).length, 4);
+  assert.equal(zoneOutline([sq(0, 0), sq(0, 1)]).length, 6);
+});
+
+test("parkFor: the bike rack on the side you come from", () => {
+  const st = [at("a", 1, 1), at("b", 1, 1.2)];
+  const west = { lat: 51.015, lon: 3.711 }, east = { lat: 51.015, lon: 3.7225 };
+  const fromWest = { lat: 51.015, lon: 3.6 }, fromEast = { lat: 51.015, lon: 3.8 };
+  assert.deepEqual(parkFor(st, fromWest, [west, east]), { ...west, rack: true });
+  assert.deepEqual(parkFor(st, fromEast, [west, east]), { ...east, rack: true });
+  assert.deepEqual(parkFor(st, fromEast, []), { lat: st[1].lat, lon: st[1].lon, rack: false }); // no rack: nearest stop
 });

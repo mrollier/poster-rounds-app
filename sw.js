@@ -4,7 +4,7 @@
 //   - Map tiles you have looked at: kept (up to ~2,500 tiles ≈ 50 MB), so the map works offline where you've been.
 //   - The backend (Google Apps Script): never cached here. The app keeps its own copy of the last data
 //     in localStorage, and changes made offline wait in its outbox.
-const SHELL = "shell-v3";
+const SHELL = "shell-v4";
 const TILES = "tiles-v1";
 const MAX_TILES = 2500;
 

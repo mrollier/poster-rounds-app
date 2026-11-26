@@ -2,6 +2,7 @@
 // Leaflet is loaded as a classic <script> (vendor/leaflet), so it is the global `L`.
 import { CONFIG } from "../config.js";
 import { route } from "./router.js";
+import { zoneOutline } from "./routes.js";
 
 const L = window.L;
 export const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
@@ -155,10 +156,13 @@ export function fitTo(points) {
     paddingTopLeft: [side ? sheet.width + 30 : 30, 80], paddingBottomRight: [60, side ? 30 : Math.min(sheet.height, window.innerHeight * .6) + 10], maxZoom: 16 });
 }
 
-// Zones overview: each zone's stops as soft dark patches, and a numbered square badge in the middle.
-// zones: [{id, number, name, centre, stops: [{lat, lon, color, done}], done, total, mins}], onOpen(id)
+// Zones: each zone is an area with a border that follows streets and water (from statistical sectors).
+// Teal while there's work left, grey once every stop is done. On the overview the stops are small dots,
+// and from zoom 15 the zone's name and progress show in its middle. A tap anywhere in a zone opens it.
+// zones: [{id, name, rings, centre, stops: [{lat, lon, color, done}], done, total, mins}], onOpen(id)
+// A zone without a name is the one that's open: just its border, and taps go through to the pins.
 export function drawZones(zones, onOpen) {
-  const sig = JSON.stringify(zones);
+  const sig = JSON.stringify(zones?.map(z => [z.id, z.name, z.done, z.total, z.rings.length, z.stops]));
   if (zonesLayer && sig === lastZones) return;
   lastZones = sig;
   zonesLayer?.remove();
@@ -166,24 +170,24 @@ export function drawZones(zones, onOpen) {
   if (!zones) return;
   zonesLayer = L.layerGroup().addTo(map);
   for (const z of zones) {
-    const open = () => onOpen(z.id), finished = z.done === z.total;
-    if (z.total === 1) { // a single stop is just a pin
-      const s = z.stops[0];
-      L.marker([s.lat, s.lon], { icon: pinIcon(s.done ? "#8a8a8a" : s.color, "", s.done ? "faded" : ""), title: z.name })
-        .on("click", open).addTo(zonesLayer);
-      continue;
-    }
+    const open = () => onOpen(z.id), finished = z.done === z.total, tappable = !!z.name;
+    const colour = finished ? "#8a8a8a" : "#1b5266";
+    // The fill: all the zone's pieces in one shape ("evenodd": a hole in a sector stays a hole).
+    L.polygon(z.rings, { stroke: false, fillColor: colour, fillOpacity: finished ? 0.35 : tappable ? 0.12 : 0.06,
+      fillRule: "evenodd", interactive: tappable }).on("click", open).addTo(zonesLayer);
+    // The open zone's border is dashed, so it doesn't look like the walking route drawn inside it.
+    L.polyline(zoneOutline(z.rings), { color: colour, weight: 3, opacity: 0.9, interactive: false,
+      dashArray: tappable ? null : "8 8" }).addTo(zonesLayer);
     for (const s of z.stops) {
-      L.circle([s.lat, s.lon], { radius: 70, stroke: false, fillColor: "#1f2933", fillOpacity: s.done ? .05 : .16 }).on("click", open).addTo(zonesLayer);
       L.circleMarker([s.lat, s.lon], { radius: 5, weight: 1, color: "#000", fillColor: s.done ? "#bbb" : s.color, fillOpacity: 1 })
         .on("click", open).addTo(zonesLayer);
     }
-    L.marker([z.centre.lat, z.centre.lon], {
-      zIndexOffset: finished ? 0 : 2000, title: `${z.number}. ${z.name}: ${z.done}/${z.total} done, about ${z.mins} min`,
-      icon: L.divIcon({ className: "", iconSize: [30, 30], iconAnchor: [15, 15],
-        html: `<div class="pin zonepin${finished ? " faded" : ""}" style="background:${z.color}">${finished ? "✓" : z.number}</div>
-               <span class="zonelbl">${esc(z.name)}<small>${z.done ? `${z.done}/${z.total} done` : `${z.total} stops`} · ${z.mins} min</small></span>` }),
-    }).on("click", open).addTo(zonesLayer);
+    if (!tappable) continue;
+    L.marker([z.centre.lat, z.centre.lon], { keyboard: false, interactive: false,
+      icon: L.divIcon({ className: "", iconSize: [0, 0],
+        html: `<span class="zonelbl${finished ? " finished" : ""}">${esc(z.name)}<small>${finished ? "all done"
+          : z.done ? `${z.done}/${z.total} done` : `${z.total} stop${z.total === 1 ? "" : "s"}`} · ${z.mins} min</small></span>` }),
+    }).addTo(zonesLayer);
   }
 }
 

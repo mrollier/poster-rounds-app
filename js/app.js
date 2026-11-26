@@ -7,7 +7,7 @@ import { setup, toast, ask, $ } from "./ui.js";
 import { stars, eventTypes, eventWeights, cleanBoot, num, cycleStart, brusselsToday, cycleFor, resultKey, STATUS_LABEL, chunkLinks } from "./logic.js";
 import { mergeResults, withPending, createQueue } from "./sync.js";
 import { dist, minutes } from "./geo.js";
-import { tripTime } from "./routes.js";
+import { tripTime, orderStops, parkFor, ZONE_MINUTES } from "./routes.js";
 import { computeWayIds, planWay, zonesNow, zoneState, byId, done } from "./modes.js";
 import { addPlace } from "./addplace.js";
 import { startNav, stopNav, navUpdate, navigating, navTarget, onNavChange } from "./nav.js";
@@ -59,11 +59,12 @@ function origin() {
 
 // ---------- View state (saved on this phone) ----------
 
-const view = { mode: "all", zone: null, zgap: 600, ztime: 60, ...store.get("view", {}) };
+const view = { mode: "all", zone: null, zonePark: null, ...store.get("view", {}) };
 if (!["all", "way", "zones"].includes(view.mode)) view.mode = "all";
-const filters = { min: "1", skip: [], skipFor: null, event: null, travel: "bike", ...store.get("filters", {}) };
+const filters = { min: "1", skip: [], skipFor: null, event: null, travel: "bike", zsize: "M", ...store.get("filters", {}) };
 let way = { budget: 15, ...store.get("way", {}) };       // On my way: {from, to, budget, ids, extra, direct}
-let zonesSaved = store.get("zones", null);               // Zones: {key, zones}
+let zonesSaved = null;                                   // Zones: {key, zones}, rebuilt in a few ms when needed
+try { localStorage.removeItem("zones"); } catch { /* older versions kept zones on the phone */ }
 let fitted = "";                                         // re-zoom the map only when the view changes
 let routeTravel = "bike", finishedDest = null, zonePark = null; // for the Navigate buttons
 const saveView = () => { store.set("view", view); store.set("filters", filters); };
@@ -252,13 +253,17 @@ function clearRoute(kept, pinExtra) {
 
 // ---------- Zones ----------
 
-let racks = null, labels = null, geoCity = null;
-async function loadCityFiles(cityName) { // bike racks and neighbourhood names; a city without files still works
+let racks = null, labels = null, sectors = null, geoCity = null;
+// Bike racks, neighbourhood names and statistical sectors (the zones' building blocks). Without a
+// sectors file there are no zones; without the others zones still work.
+async function loadCityFiles(cityName) {
   const get = f => fetch(f).then(r => (r.ok ? r.json() : null)).catch(() => null);
   const slug = cityName.toLowerCase();
-  const [r, n] = await Promise.all([get(`data/racks-${slug}.json`), get(`data/neighbourhoods-${slug}.json`)]);
+  const [r, n, sc] = await Promise.all([get(`data/racks-${slug}.json`), get(`data/neighbourhoods-${slug}.json`),
+    get(`data/sectors-${slug}.json`)]);
   racks = (r?.racks || []).map(([lat, lon]) => ({ lat, lon }));
   labels = n?.places || [];
+  sectors = sc?.sectors || null;
   geoCity = cityName;
 }
 
@@ -269,50 +274,71 @@ function renderZones(kept, all) {
     loadCityFiles(cityName).then(render);
     return;
   }
-  const key = JSON.stringify([filterKey(), view.zgap, view.ztime]);
-  const z0 = zonesNow(kept, zonesSaved, key, { gap: view.zgap, maxMin: view.ztime }, racks, labels);
-  if (z0 !== zonesSaved) { zonesSaved = z0; store.set("zones", z0); view.zone = null; saveView(); }
+  if (!sectors) {
+    $("mode-box").innerHTML = ""; listButton(""); drawPins([]); drawZones(null);
+    $("stats").innerHTML = ""; $("links").innerHTML = ""; $("stops").innerHTML = "";
+    $("next").innerHTML = nextCardHtml(null, "", { finished: { text: `Zones aren't available for ${esc(cityName)} yet (no sectors file).` } });
+    return;
+  }
+  const key = JSON.stringify([filterKey(), filters.zsize, kept.map(s => s.place.place_id)]);
+  if (zonesSaved?.key !== key) {
+    if (zonesSaved) { view.zone = null; view.zonePark = null; saveView(); } // the zones changed: back to the overview
+    zonesSaved = zonesNow(kept, key, sectors, filters.zsize, labels);
+  }
   const allById = byId(all), zs = zonesSaved.zones.map((z, i) => zoneState(z, i, allById));
   const z = zs.find(q => q.id === view.zone);
   if (z) return renderZone(kept, z);
 
   // Overview: all zones, biggest first.
   const stopsIn = zs.flatMap(q => q.stops);
-  $("mode-box").innerHTML = `<details class="way" ${wasOpen() ? "open" : ""}><summary><span><b>${zs.length}</b> zones · ${zs.filter(q => q.total === 1).length} single stops · settings</span></summary>
-    <label for="z-gap">Max walk between stops: <b id="z-gap-v">${view.zgap} m</b></label>
-    <input type="range" id="z-gap" min="200" max="800" step="50" value="${view.zgap}">
-    <fieldset><legend>Time per zone</legend><div class="seg" id="z-time">${seg("ztime", [20, 30, 45, 60].map(m => [m, `${m} min`]), view.ztime)}</div></fieldset>
-    <button type="button" class="btn small" data-ui="rebuild">Rebuild zones</button></details>`;
+  $("mode-box").innerHTML = `<div class="mode-line"><span><b>${zs.length}</b> zones · ${SIZE_NAME[filters.zsize]},
+    about ${ZONE_MINUTES[filters.zsize]} min each</span></div>`;
   $("next").innerHTML = nextCardHtml(null, "", { finished: { text: zs.length
-    ? "Pick a zone: tap it on the map, or open it from the list. Bike to the P, then walk the loop."
-    : "No stops left with these filters." } });
+    ? "Pick a zone: tap it on the map, or open it from the list. You get a bike spot (P) on your side of it and a walking loop."
+    : "No stops with these filters." } });
   if (!navigating()) $("mini").textContent = `${zs.length} zones: tap one on the map`;
   $("stats").innerHTML = statsHtml([[`${stopsIn.filter(done).length}/${stopsIn.length}`, "stops done"],
-    [String(zs.filter(q => q.total > 1).length), "walking loops"], [String(zs.filter(q => q.done === q.total).length), "zones finished"]]);
+    [String(zs.filter(q => q.done === q.total).length), "zones finished"], [String(zs.filter(q => q.done < q.total).length), "zones left"]]);
   $("links").innerHTML = "";
   $("list-title").textContent = "Zones (biggest first)";
   listButton(`All ${zs.length} zones`);
   $("stops").innerHTML = zs.map(zoneRowHtml).join("");
   drawPins([]); if (!navigating()) drawRoute(null);
-  drawZones(zs.map(q => ({ id: q.id, number: q.number, name: q.name, centre: q.centre, mins: q.mins, color: q.color,
-    done: q.done, total: q.total, stops: q.stops.map(s => ({ lat: +s.place.lat, lon: +s.place.lon, color: s.type.color, done: done(s) })) })), openZone);
-  if (fitted !== key) { fitted = key; fitTo(stopsIn.map(s => s.place)); }
+  drawZones(zs.map(q => zoneShape(q, true)), openZone);
+  const fitKey = JSON.stringify(["zones", filterKey()]); // a new zone size keeps the map where it is
+  if (fitted !== fitKey) { // the 12 zones nearest to you: the whole city would make every zone tiny
+    fitted = fitKey;
+    const from = origin();
+    fitTo([...zs].sort((a, b) => dist(from, a.centre) - dist(from, b.centre)).slice(0, 12).flatMap(q => q.stops.map(s => s.place)));
+  }
 }
+const SIZE_NAME = { S: "Small", M: "Medium", L: "Large" };
+// What the map needs of a zone: its area, its name and progress, and (on the overview) its stops as dots.
+const zoneShape = (q, dots) => ({ id: q.id, name: dots ? q.name : "", rings: q.rings, centre: q.centre, mins: q.mins,
+  done: q.done, total: q.total, stops: dots ? q.stops.map(s => ({ lat: +s.place.lat, lon: +s.place.lon, color: s.type.color, done: done(s) })) : [] });
 
 function renderZone(kept, z) {
   const single = z.total === 1;
-  zonePark = z.park;
+  // The bike spot depends on where you come from, so it's picked when you open the zone, then kept:
+  // the walking loop shouldn't reshuffle while you walk it.
+  if (!single && view.zonePark?.zone !== z.id) {
+    const open = z.stops.filter(s => !done(s));
+    view.zonePark = { zone: z.id, ...parkFor((open.length ? open : z.stops).map(s => s.place), origin(), racks || []) };
+    saveView();
+  }
+  const park = single ? null : { lat: view.zonePark.lat, lon: view.zonePark.lon, label: "P" };
+  zonePark = park;
   $("mode-box").innerHTML = `<div class="mode-line"><button type="button" class="btn small" data-ui="zone-back">← All zones</button>
-    <span><b>${z.number}. ${esc(z.name)}</b>${single ? "" : ` · ${z.total} stops · loop about ${z.mins} min`}</span></div>
-    ${single ? "" : `<button type="button" class="btn bike" data-ui="nav-park">Bike to the P${z.rack ? " (bike rack)" : ""}</button>`}`;
-  drawZones(null);
-  const park = { ...z.park, label: "P" };
-  renderRoute({ kept, route: z.stops, scope: z.stops, start: single ? origin() : park, end: single ? null : park,
+    <span><b>${esc(z.name)}</b>${single ? "" : ` · ${z.total} stops · loop about ${z.mins} min`}</span></div>
+    ${single ? "" : `<button type="button" class="btn bike" data-ui="nav-park">Bike to the P${view.zonePark.rack ? " (bike rack)" : ""}</button>`}`;
+  drawZones([zoneShape(z, false)], openZone); // just this zone's border, under the stops' pins
+  renderRoute({ kept, route: single ? z.stops : orderStops(park, z.stops.map(s => s.place), park).map(p => z.stops.find(s => s.place === p)),
+    scope: z.stops, start: single ? origin() : park, end: park,
     fromBikeSpot: !single,
     endLabel: "back to the P", travel: single ? filters.travel : "walk",
     heading: (k, n) => (single ? `Single stop · ${z.name}` : `Stop ${k} of ${n} · ${z.name}`), linkLimit: 99,
     title: single ? "The stop" : "Walking loop, in order (back to the P at the end)", showOthers: false,
-    endPins: single ? [] : [{ ...park, label: "P" }],
+    endPins: single ? [] : [park],
     finished: single ? { text: "Done here. Pick the next zone." }
       : { text: "All stops in this zone done. Walk back to your bike.", label: "Walk back to the P", dest: { ...park, name: "your bike (P)" } },
     fitKey: JSON.stringify(["zone", z.id]) });
@@ -348,6 +374,7 @@ function renderFilters() {
   $("f-event").innerHTML = seg("event", events().map(e => [e, e]), currentEvent());
   $("f-travel").innerHTML = seg("travel", [["bike", "Bike"], ["walk", "On foot"]], filters.travel);
   $("f-min").innerHTML = seg("min", [["1", "All"], ["2", "★★ and up"], ["3", "★★★"]], filters.min);
+  $("f-zsize").innerHTML = seg("zsize", Object.entries(SIZE_NAME), filters.zsize);
   $("f-types").innerHTML = typesHtml(boot.types, counts, skip());
   const shown = boot.types.filter(t => counts[t.type]), off = shown.filter(t => skip().has(t.type)).length;
   $("types-sum").textContent = `Types of place: ${shown.length - off} of ${shown.length} included`;
@@ -355,6 +382,7 @@ function renderFilters() {
 $("filter-btn").onclick = () => { if (!boot) return; renderFilters(); $("filters").showModal(); };
 $("f-travel").addEventListener("change", e => { filters.travel = e.target.value; filtersChanged(); });
 $("f-min").addEventListener("change", e => { filters.min = e.target.value; filtersChanged(); });
+$("f-zsize").addEventListener("change", e => { filters.zsize = e.target.value; filtersChanged(); });
 $("f-event").addEventListener("change", e => { filters.event = e.target.value; filtersChanged(); });
 $("types-preset").onclick = () => { filters.skipFor = null; filtersChanged(); };
 $("f-types").addEventListener("change", e => {
@@ -390,18 +418,11 @@ $("sheet").addEventListener("click", e => {
   if (ui === "zone-open") openZone(el.dataset.zone);
   if (ui === "nav-end" && finishedDest) beginNav(finishedDest, routeTravel);
   if (ui === "nav-park" && zonePark) beginNav({ ...zonePark, name: "the P (bike spot)" }, "bike");
-  if (ui === "zone-back") { view.zone = null; saveView(); fitted = ""; render(); }
-  if (ui === "rebuild") {
-    zonesSaved = zonesNow(stops().filter(passes), null, zonesSaved?.key, { gap: view.zgap, maxMin: view.ztime }, racks, labels, true);
-    store.set("zones", zonesSaved); fitted = ""; render();
-  }
+  if (ui === "zone-back") { view.zone = null; view.zonePark = null; saveView(); fitted = ""; render(); }
 });
 $("sheet").addEventListener("change", e => {
   if (e.target.name === "budget") setWay({ budget: +e.target.value });
-  if (e.target.name === "ztime") { view.ztime = +e.target.value; saveView(); render(); }
-  if (e.target.id === "z-gap") { view.zgap = +e.target.value; saveView(); render(); }
 });
-$("sheet").addEventListener("input", e => { if (e.target.id === "z-gap") $("z-gap-v").textContent = `${e.target.value} m`; });
 
 function renderSync() {
   const n = queue.items.length;
@@ -423,6 +444,7 @@ function setSheet(to) {
   $("sheet").dataset.snap = to;
   $("sheet").classList.remove("dragging");
   $("sheet-body").style.height = "";
+  if (!isOpen(to)) $("sheet-body").scrollTop = 0; // closed: show the top again (mode line, card)
   $("sheet-more").hidden = !isOpen(to);
   $("sheet-toggle").setAttribute("aria-expanded", String(isOpen(to)));
   $("sheet-toggle-text").textContent = isOpen(to) ? "Hide the list" : "Show the list";

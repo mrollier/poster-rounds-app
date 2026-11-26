@@ -12,7 +12,8 @@ changes needed for that.
 - Three ways to plan a round:
   - **All left:** every stop still to do on the map (no route); the card is the nearest one to you.
   - **On my way:** stops that fit an extra-time budget on a trip from A to B.
-  - **Zones:** park the bike, walk a loop, bike on.
+  - **Zones:** areas whose borders follow streets and water (Small / Medium / Large in Filters); finished
+    zones turn grey. Bike to the P on your side of a zone, walk its loop, bike on.
 - **Posted ✓ / Can't ✗ / Undo**, shared with the team through the sheet. Ticks show at once and are sent
   in the background; offline they wait on the phone.
 - **Real routes** by bike or on foot, and **in-app navigation** to a stop: the route from where you are, with the
@@ -133,8 +134,13 @@ event's preset in Filters; a volunteer can still tick them, and they then count 
    each month; `none` means boards are never cleaned. A board's "posted" counts only until the next cleaning
    day.
 2. **Places** tab: the city's poster places (`active` = `TRUE`).
-3. Two files in `data/`, named with the city in lower case (`Antwerpen` → `racks-antwerpen.json`). Without
-   them Zones still work, but bike spots fall back to a zone's middle and zones are named after a stop.
+3. Files in `data/`, named with the city in lower case (`Antwerpen` → `racks-antwerpen.json`).
+   - `sectors-<city>.json`: the city's statistical sectors, the building blocks of Zones (without it there
+     are no zones). Download "Statistical sectors" as GeoJSON in Lambert 2008 (EPSG:3812) from
+     https://statbel.fgov.be/en/open-data/statistical-sectors-2025, unzip, and run
+     `node tools/make-sectors.js <the .geojson> <the city's NIS code> <city>` (Ghent: 44021). No libraries needed.
+   - Without the two files below Zones still work, but the bike spot falls back to the stop nearest to you
+     and zones are named after a sector.
    - `racks-<city>.json`: public bike racks, `{"source": "...", "city": "...", "racks": [[lat, lon], ...]}`.
    - `neighbourhoods-<city>.json`: names for zones,
      `{"source": "...", "city": "...", "places": [{"name": "...", "lat": 51.05, "lon": 3.72}, ...]}`.

@@ -159,24 +159,24 @@ Port the algorithms from the prototype (search for the function names):
 2. **On my way** (`computeWay`, `wayVariant`, `updateWay`): from A to B (my position, home, a
    tapped point, or a stop's pin), with an extra-time budget (5/15/30/60 min); cheapest insertion
    until the budget is used.
-3. **Zones** (`buildZones`, `splitZone`, `zoneOf`, `walkLoop`, `renderZoneOverview`, `drawZones`):
-   park & walk.
-   - Settings: **Max walk between stops** slider 200–800 m (default 600: with 60-min zones that gives ~74 zones, 33 of them single stops) and **Time per zone**
-     20/30/45/60 min (default 60).
-   - Stops within the max walk of each other form a group (single linkage); a group whose walking
-     loop (bike spot → all stops → bike spot, including stop times) exceeds the time per zone is
-     split around its two farthest stops, recursively.
-   - Bike spot = nearest public bike rack within 400 m of the zone's centre (`data/racks-gent.json`,
-     OpenStreetMap; per city a `racks-<city>.json`), else the centre itself.
-   - Zone name = nearest neighbourhood name. Ship a small `data/neighbourhoods-gent.json`
-     (name, lat, lon); you may extract it from OpenStreetMap (place=suburb|quarter|neighbourhood)
-     or hand-write ~40 Ghent neighbourhoods. Duplicate names get " 2", " 3".
-   - Map: zones in **one neutral colour** (dark slate) that **fades to light grey with progress**;
-     a numbered square badge per zone (✓ when finished); name labels only from zoom 15.
-   - Opening a zone: "Bike to the P" (in-app navigation by bike), then the walking loop (route line on foot,
-     Google Maps links in travelmode=walking), ending "back to the P". "← All zones".
-   - Zones are stable: rebuilt only when a setting or filter changes or on "Rebuild zones".
-   - One-stop zones are plain pins: "Bike to this stop".
+3. **Zones** (`buildZones`, `zoneOutline`, `parkFor`, `walkLoop`, `drawZones`): areas whose borders follow
+   streets, railways and water; park the bike, walk a loop.
+   - Building blocks: Statbel's statistical sectors (`data/sectors-<city>.json`, made once with
+     `tools/make-sectors.js`). No sectors file: Zones says it isn't available for that city.
+   - One setting, **Zone size** in Filters: Small / Medium / Large ≈ 20 / 45 / 90 min of walking + hanging.
+   - Zones are built from **all** stops that pass the filters, done ones too, so borders don't move while the
+     team works. Each sector with stops starts as a zone; a sector with more work than target × 1.3 is cut in
+     two along the line halfway between its two farthest stops (recursively). Then the smallest zone under the
+     target joins its smallest touching neighbour while the result stays ≤ target × 1.3 (greedy region growing).
+     Sectors touch when they share a border point; an empty sector in between (a park, water) also connects.
+   - Zone name = nearest neighbourhood name (`data/neighbourhoods-<city>.json`), else the sector's name;
+     a one-stop zone is named after its stop. Duplicate names get " 2", " 3".
+   - Map: each zone a teal area with a border, **grey once every stop is done**; open stops as small dots;
+     name and "3/7 done · 40 min" in the middle from zoom 15. No numbers. A tap in a zone opens it.
+   - Opening a zone: the bike spot (P) is the public bike rack (within 400 m of a stop, `data/racks-<city>.json`)
+     that makes biking there from where you are (GPS, else home) + walking the loop quickest; no rack: the
+     nearest stop. It's chosen once when you open the zone and kept until "← All zones". Then "Bike to the P",
+     the walking loop from the P (route line on foot), ending "back to the P". The open zone's border is dashed.
 
 ### 4.7 Results
 
@@ -227,7 +227,7 @@ base map, result-log export/import, KML/GeoJSON export, printing. Don't add acco
 
 - Lighthouse (mobile): PWA installable, accessibility ≥ 90, works offline after first load.
 - Unit tests (Node's built-in `node --test`, no dependencies) for: stars, cycleStart for several
-  dates (incl. month boundaries), buildZones on the seed data (deterministic), orderStops (loop
+  dates (incl. month boundaries), buildZones on the seed data (deterministic, sizes) and on small synthetic grids (merging, cutting, outline, bike spot), orderStops (loop
   shorter than random order), result merge (last write wins), offline queue.
 - One Playwright smoke test (optional) against a mocked backend.
 - No console errors. All user-visible text in plain English.
