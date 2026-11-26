@@ -65,6 +65,7 @@ python3 -m http.server 8000
 
 # Against a fake backend with the seed data (nothing is saved; team code "secret")
 node tests/mock-server.js            # then open http://localhost:8787
+PORT=8791 node tests/mock-server.js  # a second, separate one (any port 8787–8799 uses the mock)
 
 # Unit tests (no packages to install)
 node --test
@@ -159,6 +160,8 @@ event's preset in Filters; a volunteer can still tick them, and they then count 
   **navigation** use real routes from the FOSSGIS route server (free, no key; fine for a handful of volunteers).
   Offline you get a dashed straight line instead. On my way follows your Bike / On foot choice in
   Filters; a zone's loop is walked, and "Bike to the P" is biked.
+- **Look:** colours and the lightbulb logo follow effectivealtruism.org (dark teal `#1b5266`, peach
+  `#ffbe8b`), set once at the top of `css/app.css`. The app icons in `icons/` are the same lightbulb.
 - **Navigation** shows distance and time, not turn-by-turn instructions; use the small Google Maps link for those.
 - **Orders are per phone.** On my way and Zones are remembered on each phone; only results and
   places are shared.
