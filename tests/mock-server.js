@@ -3,7 +3,7 @@
 //
 //   node tests/mock-server.js        → http://localhost:8787   (team code: secret)
 //
-// config.js points the app at /exec when it runs on port 8787.
+// config.js points the app at /exec when it runs on a port from 8787 to 8799 (PORT=8791 node tests/mock-server.js).
 import http from "node:http";
 import fs from "node:fs";
 import path from "node:path";
@@ -11,7 +11,7 @@ import vm from "node:vm";
 import { parseCSV, DATA } from "./csv.js";
 
 const ROOT = path.join(import.meta.dirname, "..");
-const PORT = 8787;
+const PORT = Number(process.env.PORT) || 8787; // 8787–8799: config.js then uses this mock
 
 // Fake Google Sheet: each tab is an array of rows (header first), same shape getDisplayValues() returns.
 const tabs = Object.fromEntries(["Places", "Campaigns", "Results", "Cities", "Types"].map(t =>

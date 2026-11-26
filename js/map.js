@@ -100,10 +100,10 @@ let routeLine = null, routeSig = "", navLine = null, zonesLayer = null, lastZone
 // A line along the streets: dark with a white edge, so it shows on any tile. `straight`: a dashed
 // straight line instead, while the real route is on its way (or when offline).
 function line(coords, straight) {
-  if (straight) return L.polyline(coords, { color: "#000", weight: 3, opacity: .7, dashArray: "6 8", interactive: false });
+  if (straight) return L.polyline(coords, { color: "#1b5266", weight: 3, opacity: .8, dashArray: "6 8", interactive: false });
   return L.layerGroup([
     L.polyline(coords, { color: "#fff", weight: 9, opacity: .9, interactive: false }),
-    L.polyline(coords, { color: "#1f2933", weight: 5, opacity: .95, interactive: false }),
+    L.polyline(coords, { color: "#1b5266", weight: 5, opacity: .95, interactive: false }),
   ]);
 }
 

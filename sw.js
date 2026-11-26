@@ -4,7 +4,7 @@
 //   - Map tiles you have looked at: kept (up to ~2,500 tiles ≈ 50 MB), so the map works offline where you've been.
 //   - The backend (Google Apps Script): never cached here. The app keeps its own copy of the last data
 //     in localStorage, and changes made offline wait in its outbox.
-const SHELL = "shell-v2";
+const SHELL = "shell-v3";
 const TILES = "tiles-v1";
 const MAX_TILES = 2500;
 
@@ -14,7 +14,7 @@ const FILES = [
   "js/app.js", "js/addplace.js", "js/data.js", "js/geo.js", "js/location.js", "js/logic.js", "js/map.js",
   "js/modes.js", "js/nav.js", "js/router.js", "js/routes.js", "js/sync.js", "js/ui.js", "js/views.js",
   "vendor/leaflet/leaflet.js", "vendor/leaflet/leaflet.css",
-  "icons/icon-192.png", "icons/apple-touch-icon.png", "icons/favicon-32.png",
+  "icons/icon-192.png", "icons/apple-touch-icon.png", "icons/favicon-32.png", "icons/ea-logo.svg",
 ];
 
 self.addEventListener("install", e => {

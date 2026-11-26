@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-  <meta name="theme-color" content="#000000">
+  <meta name="theme-color" content="#1b5266">
   <title>Poster map</title>
   <link rel="preconnect" href="https://tile.openstreetmap.org" crossorigin>
   <link rel="manifest" href="manifest.webmanifest">
@@ -20,6 +20,7 @@
   <div id="map" role="application" aria-label="Map of poster places"></div>
 
   <header class="bar">
+    <img class="logo" src="icons/ea-logo.svg" alt="" width="20" height="30">
     <div id="modes" class="seg modes" role="radiogroup" aria-label="Route">
       <label><input type="radio" name="mode" value="all"><span>All left</span></label>
       <label><input type="radio" name="mode" value="way"><span>On my way</span></label>
@@ -74,7 +75,7 @@
 
   <!-- First run and Settings: the same form. Part 2 (home, campaign) opens once the team code is checked. -->
   <form id="setup" class="setup" hidden novalidate>
-    <h1>Poster map</h1>
+    <h1><img class="logo" src="icons/ea-logo.svg" alt="" width="24" height="36"> Poster map</h1>
     <p class="muted">Where to hang posters, in which order, and what the team has already done.</p>
 
     <label for="f-name">Your first name</label>
