@@ -134,7 +134,7 @@ Settings (name, code, home, campaign) are reachable later from a small menu.
   any manual pan turns follow off).
 - Clear messages for: permission denied (how to re-enable in iOS/Android settings), no fix yet,
   low accuracy.
-- "Start from my position" is the default start for Everything left and Zones; Home is the fallback.
+- "Start from my position" is the default start for All left and Zones; Home is the fallback.
 
 ### 4.5 Filters
 
@@ -167,8 +167,8 @@ Port the algorithms from the prototype (search for the function names):
      or hand-write ~40 Ghent neighbourhoods. Duplicate names get " 2", " 3".
    - Map: zones in **one neutral colour** (dark slate) that **fades to light grey with progress**;
      a numbered square badge per zone (✓ when finished); name labels only from zoom 15.
-   - Opening a zone: "Bike to the P" (Google Maps, travelmode=bicycling), then the walking loop with
-     Google Maps links in travelmode=walking, ending "back to the P". "← All zones".
+   - Opening a zone: "Bike to the P" (in-app navigation by bike), then the walking loop (route line on foot,
+     Google Maps links in travelmode=walking), ending "back to the P". "← All zones".
    - Zones are stable: rebuilt only when a setting or filter changes or on "Rebuild zones".
    - One-stop zones are plain pins: "Bike to this stop".
 
@@ -189,11 +189,19 @@ name, type, importance (★ / ★★ / ★★★, default ★★; the form previ
 event), access (ask/free), posters (default 1), notes. POST `addPlace`; the place appears for
 everyone after the next poll. Send `location_source` gps/tap (stored as app-gps/app-tap).
 
-### 4.9 Navigation links
+### 4.9 Routes and navigation
 
-Google Maps directions URLs (`https://www.google.com/maps/dir/?api=1&destination=…&travelmode=…`).
-Use the address for places from the address register (`location_source = basisregisters`), else
-`lat,lon`. Max 3 waypoints + destination per link (phones) – chunk longer routes like the prototype.
+- **Route lines** follow the streets: the FOSSGIS OSRM server (`routing.openstreetmap.de/routed-bike|routed-foot`,
+  free, no key), one request per drawn trip, cached in memory. A dashed straight line shows at once and stays
+  when offline. The stop order is still worked out on the phone (haversine × 1.3).
+- **Navigate** (card, popups, list) starts in-app navigation: the sheet drops to its strip, follow-me at zoom 17,
+  a banner "To <place> · 850 m · 4 min · ✕". Distance = along the route line from the nearest point; time =
+  the route's duration × the share still to go. More than 50 m off the line twice in a row (at most every 20 s):
+  a new route from here. Within 30 m: "You're at <place>" with Posted ✓ / Can't ✗; a result for that place ends
+  navigation. No turn-by-turn instructions.
+- **Google Maps** stays as a fallback: a small "Google Maps ↗" link on the card and list rows, and the
+  multi-stop links in the sheet (address for `location_source = basisregisters`, else `lat,lon`; max 3
+  waypoints + destination per link).
 
 ## 5. Tags
 

@@ -4,12 +4,13 @@ import { initMap, showCity, drawPins, closePopup, setHome, setMe, setFollow, onU
   drawZones, zoneLabelsFromZoom, esc } from "./map.js";
 import { watchWhileVisible, restartWatching, lastPosition } from "./location.js";
 import { setup, toast, ask, $ } from "./ui.js";
-import { stars, eventTypes, eventWeights, cycleStart, brusselsToday, cycleFor, resultKey, STATUS_LABEL, gmapsUrl, chunkLinks } from "./logic.js";
+import { stars, eventTypes, eventWeights, cycleStart, brusselsToday, cycleFor, resultKey, STATUS_LABEL, chunkLinks } from "./logic.js";
 import { mergeResults, withPending, createQueue } from "./sync.js";
 import { dist } from "./geo.js";
 import { tripTime } from "./routes.js";
 import { planAll, computeWayIds, planWay, zonesNow, zoneState, byId, done } from "./modes.js";
 import { addPlace } from "./addplace.js";
+import { startNav, stopNav, navUpdate, navigating, navTarget, onNavChange } from "./nav.js";
 import { pinOf, nextCardHtml, rowHtml, statsHtml, seg, linksHtml, zoneRowHtml, typesHtml } from "./views.js";
 
 initMap($("map"));
@@ -61,6 +62,8 @@ let allOrder = store.get("allOrder", null);              // Everything left: {ke
 let way = { budget: 15, ...store.get("way", {}) };       // On my way: {from, to, budget, ids, extra, direct}
 let zonesSaved = store.get("zones", null);               // Zones: {key, zones}
 let fitted = "";                                         // re-zoom the map only when the view changes
+let routeTravel = "bike", finishedDest = null, zonePark = null; // for the Navigate buttons
+let lineFrom = null;                                     // where the route line starts (see renderRoute)
 const saveView = () => { store.set("view", view); store.set("filters", filters); };
 
 const skip = () => new Set(filters.skip);
@@ -111,7 +114,7 @@ function renderAll(kept) {
   renderRoute({ kept, route: plan.route, extra: plan.extra, scope: kept, start, end: home, endLabel: "home",
     travel: filters.travel, heading: (k, n) => `Next stop · ${k} of ${n}`, linkLimit: 12,
     title: "All left, in order", finished: home
-      ? { text: "All stops done. On to home!", label: "Navigate home", url: gmapsUrl(home, { mode: filters.travel }) }
+      ? { text: "All stops done. On to home!", label: "Navigate home", dest: { ...home, name: "home" } }
       : { text: "All stops done with these filters. Well done!" },
     fitKey: JSON.stringify(["all", filterKey()]) });
 }
@@ -151,7 +154,7 @@ function renderWay(kept) {
     endPins: [{ ...way.from, label: "A" }, { ...way.to, label: "B" }],
     finished: { text: plan.route.length ? "All stops on the way done. On to your destination!"
       : `No stop fits in ${way.budget} extra minutes. Allow more time, or pick other ends.`,
-      label: "Navigate to your destination", url: gmapsUrl(way.to, { mode: filters.travel }) },
+      label: "Navigate to your destination", dest: { ...way.to, name: way.to.label } },
     fitKey: JSON.stringify(["way", way.from, way.to, way.budget, filterKey()]) });
 }
 const wayButtons = s => `<button type="button" class="popbtn alt" data-act="from" data-id="${esc(s.place.place_id)}">Start here</button>
@@ -159,12 +162,14 @@ const wayButtons = s => `<button type="button" class="popbtn alt" data-act="from
 
 // Draws any planned trip: card, stats, Google Maps links, list, pins and line.
 function renderRoute(o) {
+  routeTravel = o.travel;
+  finishedDest = o.finished.dest || null;
   const remaining = o.route.filter(s => !done(s));
   const st = s => s.res?.status || "";
   const next = remaining.find(s => !st(s)) || remaining.find(s => st(s) === "later");
   const k = next ? o.route.indexOf(next) + 1 : 0;
   $("next").innerHTML = nextCardHtml(next, o.heading(k, o.route.length), { travel: o.travel, finished: o.finished });
-  $("mini").textContent = next ? `${distText(dist(lastPosition() || o.start, next.place))} · ${next.place.name}` : o.finished.text;
+  if (!navigating()) $("mini").textContent = next ? `${distText(dist(lastPosition() || o.start, next.place))} · ${next.place.name}` : o.finished.text;
 
   // Times: from where I am now (or the trip's start) through what's left. A zone's walking loop
   // always counts from the bike spot: you bike there first.
@@ -198,7 +203,10 @@ function renderRoute(o) {
     .map(s => pos.has(s) ? pinOf(s, pos.get(s), o.pinExtra?.(s) || "") : { ...pinOf(s, "", o.pinExtra?.(s) || ""), cls: done(s) ? "faded" : "dim" });
   for (const e of o.endPins || []) pins.push({ lat: +e.lat, lon: +e.lon, label: e.label, cls: "way", color: "#1a73e8", title: e.label, popup: esc(e.label), z: 3000 });
   drawPins(pins);
-  drawRoute([from, ...remaining.slice(0, o.linkLimit).map(s => s.place), ...(withEnd ? [o.end] : [])]);
+  // The line starts where I was when it was last drawn, until I'm 100 m further: then the route server
+  // isn't asked again for every few steps.
+  if (!lineFrom || dist(lineFrom, from) > 100) lineFrom = from;
+  if (!navigating()) drawRoute([lineFrom, ...remaining.slice(0, o.linkLimit).map(s => s.place), ...(withEnd ? [o.end] : [])], o.travel);
   if (o.fitKey !== fitted) {
     fitted = o.fitKey;
     fitTo([o.start, ...remaining.slice(0, 12).map(s => s.place), ...(o.end ? [o.end] : [])].filter(Boolean));
@@ -208,7 +216,7 @@ function renderRoute(o) {
 // No trip yet: plain pins, nothing else.
 function clearRoute(kept, pinExtra) {
   $("stats").innerHTML = ""; $("links").innerHTML = ""; $("stops").innerHTML = "";
-  drawRoute(null);
+  if (!navigating()) drawRoute(null);
   drawPins(kept.filter(s => !done(s)).map(s => pinOf(s, `${s.stars}★`, pinExtra(s))));
 }
 
@@ -254,7 +262,7 @@ function renderZones(kept, all) {
   $("links").innerHTML = "";
   $("list-title").textContent = "Zones (biggest first)";
   $("stops").innerHTML = zs.map(zoneRowHtml).join("");
-  drawPins([]); drawRoute(null);
+  drawPins([]); if (!navigating()) drawRoute(null);
   drawZones(zs.map(q => ({ id: q.id, number: q.number, name: q.name, centre: q.centre, mins: q.mins, color: q.color,
     done: q.done, total: q.total, stops: q.stops.map(s => ({ lat: +s.place.lat, lon: +s.place.lon, color: s.type.color, done: done(s) })) })), openZone);
   if (fitted !== key) { fitted = key; fitTo(stopsIn.map(s => s.place)); }
@@ -262,10 +270,10 @@ function renderZones(kept, all) {
 
 function renderZone(kept, z) {
   const single = z.total === 1;
-  const bike = gmapsUrl(z.park, { mode: "bike" });
+  zonePark = z.park;
   $("mode-box").innerHTML = `<div class="mode-line"><button type="button" class="btn small" data-ui="zone-back">← All zones</button>
     <span><b>${z.number}. ${esc(z.name)}</b>${single ? "" : ` · ${z.total} stops · loop about ${z.mins} min`}</span></div>
-    ${single ? "" : `<a class="btn bike" href="${bike}" target="_blank" rel="noopener">Bike to the P${z.rack ? " (bike rack)" : ""}</a>`}`;
+    ${single ? "" : `<button type="button" class="btn bike" data-ui="nav-park">Bike to the P${z.rack ? " (bike rack)" : ""}</button>`}`;
   drawZones(null);
   const park = { ...z.park, label: "P" };
   renderRoute({ kept, route: z.stops, extra: [], scope: z.stops, start: single ? origin() : park, end: single ? null : park,
@@ -275,7 +283,7 @@ function renderZone(kept, z) {
     title: single ? "The stop" : "Walking loop, in order (back to the P at the end)", showOthers: false,
     endPins: single ? [] : [{ ...park, label: "P" }],
     finished: single ? { text: "Done here. Pick the next zone." }
-      : { text: "All stops in this zone done. Walk back to your bike.", label: "Walk back to the P", url: gmapsUrl(park, { mode: "walk" }) },
+      : { text: "All stops in this zone done. Walk back to your bike.", label: "Walk back to the P", dest: { ...park, name: "your bike (P)" } },
     fitKey: JSON.stringify(["zone", z.id]) });
 }
 
@@ -350,6 +358,8 @@ $("sheet").addEventListener("click", e => {
   if (ui === "way") wayEnd(el.dataset.end, el.dataset.how);
   if (ui === "recalc") setWay({});
   if (ui === "zone-open") openZone(el.dataset.zone);
+  if (ui === "nav-end" && finishedDest) beginNav(finishedDest, routeTravel);
+  if (ui === "nav-park" && zonePark) beginNav({ ...zonePark, name: "the P (bike spot)" }, "bike");
   if (ui === "zone-back") { view.zone = null; saveView(); fitted = ""; render(); }
   if (ui === "rebuild") {
     zonesSaved = zonesNow(stops().filter(passes), null, zonesSaved?.key, { gap: view.zgap, maxMin: view.ztime }, racks, labels, true);
@@ -453,6 +463,7 @@ async function flush() {
 }
 
 function write(place, patch) {
+  if (navTarget()?.id === place.place_id) endNav(); // a result for the place I navigated to: navigation done
   queue.add({ action: "result", campaign_id: boot.campaign_id, place_id: place.place_id,
               cycle: cycleFor(place, boardCycle()), ...patch });
   render();
@@ -493,6 +504,7 @@ async function onAction(e) {
   if (act === "nope") await markOther(s, "nope");
   if (act === "undo") write(s.place, { status: "", posters: 0 });
   if (act === "note") await editNote(s);
+  if (act === "nav") beginNav({ lat: +s.place.lat, lon: +s.place.lon, name: s.place.name, id: s.place.place_id }, routeTravel);
   if (act === "from" || act === "to") setWay({ [act]: { lat: +s.place.lat, lon: +s.place.lon, label: s.place.name } });
 }
 $("sheet").addEventListener("click", onAction);
@@ -605,6 +617,7 @@ function startLocation() {
     locMessage("No location fix yet. Step outside or wait a moment."); }, 15000);
   watchWhileVisible(pos => {
     setMe(pos);
+    navUpdate(pos);
     locMessage(pos.accuracy > LOW_ACCURACY ? `Low accuracy (±${pos.accuracy} m): the blue dot may be off.` : "");
     // "Nearest stop" depends on where I am: re-sort after moving 50 m or more.
     if (!lastRenderFrom || dist(lastRenderFrom, pos) > 50) { lastRenderFrom = pos; render(); }
@@ -614,16 +627,48 @@ function startLocation() {
   });
 }
 
-function setFollowing(on) {
+function setFollowing(on, zoom) {
   follow = on;
   $("follow-btn").setAttribute("aria-pressed", String(on));
-  setFollow(on, lastPosition());
+  setFollow(on, lastPosition(), zoom);
   if (on && !lastPosition()) locMessage("Waiting for your location…");
 }
 $("follow-btn").onclick = () => setFollowing(!follow);
 onUserPan(() => { if (follow) setFollowing(false); }); // panning by hand means "let me look around"
 $("loc-hide").onclick = () => locMessage("");
 $("loc-retry").onclick = () => { locMessage("Finding your location…"); restartWatching(); };
+
+// ---------- In-app navigation ----------
+
+
+function beginNav(dest, travel) {
+  closePopup();
+  setSheet("min");                 // the whole screen for the map
+  drawRoute(null);                 // the trip's line makes way for the route to this place
+  startLocation();
+  setFollowing(true, 17);
+  startNav(dest, travel, lastPosition());
+}
+function endNav() {
+  stopNav();
+  render();                        // the trip's line comes back
+}
+
+onNavChange(st => {
+  $("nav").hidden = !st;
+  if (!st) return;
+  $("nav-to").textContent = st.arrived ? `You're at ${st.name}` : `To ${st.name}`;
+  $("nav-left").textContent = st.waiting ? "Waiting for your location…"
+    : st.arrived ? "" : `${distText(st.metres)} · ${Math.max(1, Math.round(st.mins))} min`;
+  $("nav").classList.toggle("arrived", !!st.arrived);
+  $("mini").textContent = `${st.arrived ? "Arrived" : $("nav-left").textContent} · ${st.name}`;
+  // Arrived at a stop: tick it off right here.
+  $("nav-acts").innerHTML = st.arrived && st.id && findStop(st.id)
+    ? `<button type="button" class="done" data-act="posted" data-id="${esc(st.id)}">Posted ✓</button>
+       <button type="button" data-act="nope" data-id="${esc(st.id)}">Can't ✗</button>` : "";
+});
+$("nav").addEventListener("click", onAction);
+$("nav-stop").onclick = endNav;
 
 // ---------- Start ----------
 

@@ -15,8 +15,11 @@ changes needed for that.
   - **Zones:** park the bike, walk a loop, bike on.
 - **Posted ✓ / Can't ✗ / Undo**, shared with the team through the sheet. Ticks show at once and are sent
   in the background; offline they wait on the phone.
-- **Live location** (blue dot, follow-me), **Google Maps links** for every leg, and **+ Add place** for new
-  spots found on the street.
+- **Real routes** by bike or on foot, and **in-app navigation** to a stop: the route from where you are, with the
+  distance and time still to go, a new route when you take another way, and Posted ✓ / Can't ✗ when you arrive.
+  A small Google Maps link stays for turn-by-turn directions.
+- **Live location** (blue dot, follow-me) and **+ Add place** for new spots found on the street.
+- Drag the bottom sheet down to a one-line strip to see the whole map.
 - Installable on the home screen; works offline after the first visit.
 
 The full product and technical spec is in [docs/SPEC.md](docs/SPEC.md).
@@ -42,7 +45,8 @@ js/app.js        state, buttons, syncing          js/views.js    HTML for cards,
 js/logic.js      stars, cleaning cycles, links   js/routes.js   the route algorithms (pure)
 js/modes.js      the three modes as plans         js/geo.js      distances and travel times
 js/sync.js       merge results + offline outbox   js/data.js     backend calls, localStorage
-js/map.js        Leaflet: pins, zones, blue dot   js/location.js GPS
+js/map.js        Leaflet: pins, lines, blue dot   js/location.js GPS
+js/router.js     real routes (OSRM server)        js/nav.js      in-app navigation
 js/ui.js         setup form, dialogs, toasts      js/addplace.js "+ Add place"
 sw.js, manifest.webmanifest, icons/   offline support and home-screen install
 data/            seed CSVs (tests only), racks-<city>.json, neighbourhoods-<city>.json
@@ -88,8 +92,9 @@ version → Deploy**. The URL stays the same. The first-time setup is in [SETUP.
 
 ### Change the backend URL or the map tiles
 
-Both are in [config.js](config.js). `APPS_SCRIPT_URL` is the web-app URL ending in `/exec`. `TILE_URL` and
-`TILE_ATTRIBUTION` set the base map; the file has a CARTO alternative in a comment.
+All are in [config.js](config.js). `APPS_SCRIPT_URL` is the web-app URL ending in `/exec`. `TILE_URL` and
+`TILE_ATTRIBUTION` set the base map; the file has a CARTO alternative in a comment. `ROUTER_URL` is the route
+server (the free OSRM server of FOSSGIS, `routing.openstreetmap.de`, with a bike and a foot profile).
 
 ### Change the team code
 
@@ -149,8 +154,12 @@ event's preset in Filters; a volunteer can still tick them, and they then count 
 
 ## Notes and limits
 
-- **Distances** are straight-line × 1.3, at 15 km/h by bike and 4.5 km/h on foot, plus 3 min per city board
-  and 5 min per other stop. Good enough for ordering; Google Maps does the real routing.
+- **Distances** for ordering the stops are straight-line × 1.3, at 15 km/h by bike and 4.5 km/h on foot, plus
+  3 min per city board and 5 min per other stop: quick, and no network needed. The **lines on the map** and
+  **navigation** use real routes from the FOSSGIS route server (free, no key; fine for a handful of volunteers).
+  Offline you get a dashed straight line instead. All left and On my way follow your Bike / On foot choice in
+  Filters; a zone's loop is walked, and "Bike to the P" is biked.
+- **Navigation** shows distance and time, not turn-by-turn instructions; use the small Google Maps link for those.
 - **Orders are per phone.** All left, On my way and Zones are remembered on each phone; only results and
   places are shared.
 - **Sync:** results are fetched every 30 s and when the app comes back on screen; places every 5 minutes. When
@@ -166,7 +175,7 @@ event's preset in Filters; a volunteer can still tick them, and they then count 
 `node --test` covers:
 - stars on the seed data (53 / 56 / 89 for AI Safety) and the event presets;
 - cleaning cycles across month and year boundaries;
-- the route algorithms;
+- the route algorithms, and following a route line (navigation);
 - merging results and the offline outbox;
 - Google Maps link splitting;
 - the backend itself, run against a fake sheet.

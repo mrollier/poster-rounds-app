@@ -148,6 +148,24 @@ button, input, select { font: inherit; color: inherit; }
   font-weight: 800; font-size: 1rem; cursor: pointer;
 }
 .go-row .nope { font-size: .95rem; color: var(--warn); border-color: var(--warn); }
+/* Navigate: the black button (on the card, and "Navigate home" when all is done). */
+.next .navgo { background: var(--ink); color: var(--hivis); border-color: var(--ink); }
+.next.finished .navgo { width: 100%; min-height: 52px; margin-top: 10px; border-radius: 6px; font-weight: 800; font-size: 1.1rem; cursor: pointer; }
+.next .gmaps { display: flex; align-items: center; justify-content: flex-end; min-height: 44px; margin-bottom: -8px;
+               font-size: .9rem; font-weight: 700; color: var(--ink); }
+
+/* Navigation banner: under the top bar while you navigate. */
+.nav {
+  position: fixed; z-index: 1001; left: 8px; right: 8px; top: calc(var(--bar) + env(safe-area-inset-top) + 6px);
+  max-width: 560px; margin: 0 auto; display: flex; align-items: center; gap: 10px; padding: 8px 8px 8px 14px;
+  background: var(--ink); color: var(--paper); border-radius: 10px; box-shadow: 0 2px 8px rgba(0,0,0,.35);
+}
+.nav-text { flex: 1; min-width: 0; }
+.nav-to { display: block; font-size: .85rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.nav-left { display: block; font-size: 1.35rem; font-weight: 800; font-variant-numeric: tabular-nums; color: var(--hivis); }
+.nav button { flex: none; min-height: 44px; min-width: 44px; padding: 0 10px; border: 2px solid var(--paper); border-radius: 6px;
+              background: var(--ink); color: var(--paper); font-weight: 800; cursor: pointer; }
+.nav button.done { background: var(--hivis); color: var(--ink); border-color: var(--hivis); }
 
 .stats { display: flex; gap: 20px; flex-wrap: wrap; margin: 14px 0 0; font-variant-numeric: tabular-nums; }
 .stats b { display: block; font-size: 1.3rem; }
@@ -280,3 +298,8 @@ details.way legend, details.way label { font-weight: 700; font-size: .9rem; marg
 
 /* Leaflet's zoom buttons are 30 px: too small for a thumb outdoors. */
 .leaflet-touch .leaflet-bar a, .leaflet-bar a { width: 44px; height: 44px; line-height: 44px; font-size: 22px; }
+body:has(#nav:not([hidden])) .sync-btn { top: calc(var(--bar) + env(safe-area-inset-top) + 84px); }
+/* Arrived: the name on the first row, the Posted / Can't buttons on a second row. */
+.nav.arrived { flex-wrap: wrap; }
+.nav.arrived #nav-acts { order: 3; flex-basis: 100%; display: flex; gap: 8px; }
+.nav.arrived #nav-acts button { flex: 1; }

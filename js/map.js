@@ -1,6 +1,7 @@
 // The Leaflet map: base tiles, place pins, the home marker, and "tap a point on the map".
 // Leaflet is loaded as a classic <script> (vendor/leaflet), so it is the global `L`.
 import { CONFIG } from "../config.js";
+import { route } from "./router.js";
 
 const L = window.L;
 export const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
@@ -13,6 +14,7 @@ export function initMap(el) {
   // crossOrigin: fetch tiles as CORS images, so the service worker can store them compactly for offline use
   // (other ways, browsers count every stored tile as several MB).
   L.tileLayer(CONFIG.TILE_URL, { maxZoom: 19, attribution: CONFIG.TILE_ATTRIBUTION, crossOrigin: "anonymous" }).addTo(map);
+  map.attributionControl.addAttribution(CONFIG.ROUTER_ATTRIBUTION);
   placesLayer = L.layerGroup().addTo(map);
   return map;
 }
@@ -85,22 +87,47 @@ export function setMe(pos) {
 }
 
 // Follow-me: keep the map centred on the blue dot. Dragging the map yourself switches it off.
-export function setFollow(on, pos) {
+export function setFollow(on, pos, zoom = 16) {
   following = on;
-  if (on && pos) map.setView([pos.lat, pos.lon], Math.max(map.getZoom(), 16));
+  if (on && pos) map.setView([pos.lat, pos.lon], Math.max(map.getZoom(), zoom));
 }
 export function onUserPan(cb) { map.on("dragstart", cb); }
 
 // ---------- Route line and zones ----------
 
-let routeLine = null, zonesLayer = null, lastZones = "";
+let routeLine = null, routeSig = "", navLine = null, zonesLayer = null, lastZones = "";
 
-// A dashed line through the trip, so you can see the order at a glance. points: [{lat, lon}] or null.
-export function drawRoute(points) {
+// A line along the streets: dark with a white edge, so it shows on any tile. `straight`: a dashed
+// straight line instead, while the real route is on its way (or when offline).
+function line(coords, straight) {
+  if (straight) return L.polyline(coords, { color: "#000", weight: 3, opacity: .7, dashArray: "6 8", interactive: false });
+  return L.layerGroup([
+    L.polyline(coords, { color: "#fff", weight: 9, opacity: .9, interactive: false }),
+    L.polyline(coords, { color: "#1f2933", weight: 5, opacity: .95, interactive: false }),
+  ]);
+}
+
+// The trip through its stops, by bike or on foot. points: [{lat, lon}] or null.
+// Drawn straight at once, then replaced by the real route when the route server answers.
+export function drawRoute(points, travel = "bike") {
+  const sig = JSON.stringify([points, travel]);
+  if (sig === routeSig) return; // unchanged: don't flicker on every refresh
+  routeSig = sig;
   routeLine?.remove();
-  routeLine = points && points.length > 1
-    ? L.polyline(points.map(p => [+p.lat, +p.lon]), { color: "#000", weight: 3, opacity: .7, dashArray: "6 8", interactive: false }).addTo(map)
-    : null;
+  routeLine = null;
+  if (!points || points.length < 2) return;
+  routeLine = line(points.map(p => [+p.lat, +p.lon]), true).addTo(map);
+  route(points, travel).then(r => {
+    if (!r || sig !== routeSig) return; // offline, or a newer trip was drawn meanwhile
+    routeLine.remove();
+    routeLine = line(r.coords, false).addTo(map);
+  });
+}
+
+// Navigation's own line (coords [[lat, lon]]), or null to remove it.
+export function drawNavLine(coords, straight = false) {
+  navLine?.remove();
+  navLine = coords ? line(coords, straight).addTo(map) : null;
 }
 
 // Zoom the map so all these points fit (used when you switch mode or open a zone, not on every tick).

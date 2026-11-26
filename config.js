@@ -11,6 +11,11 @@ export const CONFIG = {
   TILE_URL: "https://tile.openstreetmap.org/{z}/{x}/{y}.png",
   TILE_ATTRIBUTION: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
 
+  // Real routes by bike ({profile} = bike) or on foot (foot): the free OSRM server of FOSSGIS, OpenStreetMap data.
+  // Fine for a handful of volunteers; no key. (The "driving" in the address is just OSRM's fixed word.)
+  ROUTER_URL: "https://routing.openstreetmap.de/routed-{profile}/route/v1/driving/",
+  ROUTER_ATTRIBUTION: 'Routes: <a href="https://routing.openstreetmap.de/about.html">FOSSGIS OSRM</a>',
+
   // Optional: campaign_id to preselect when more than one campaign is active.
   DEFAULT_CAMPAIGN: "",
 };

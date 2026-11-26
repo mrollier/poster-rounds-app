@@ -42,15 +42,16 @@ function popupHtml(s, extraButtons) {
     <div class="pop-btns">${isDone(st)
       ? btn("undo", p.place_id, "Undo ↺", "popbtn alt")
       : btn("posted", p.place_id, "Posted ✓", "popbtn") + btn("nope", p.place_id, "Can't ✗", "popbtn alt")}
-      <a class="popbtn alt" href="${gmapsUrl(p)}" target="_blank" rel="noopener">Navigate</a>${extraButtons}</div></div>`;
+      ${btn("nav", p.place_id, "Navigate", "popbtn alt")}${extraButtons}</div></div>`;
 }
 
-// The big yellow card at the bottom: the stop to do now. `finished`: {text, label, url} when nothing is left.
+// The big yellow card at the bottom: the stop to do now. `finished`: {text, label, dest} when nothing is left
+// (dest: where "label" navigates to, e.g. home).
 export function nextCardHtml(s, heading, { travel = "bike", finished = null } = {}) {
   if (!s) {
     const f = finished || { text: "Nothing left to do with these filters." };
     return `<div class="next finished"><b>${esc(f.text)}</b>
-      ${f.url ? `<a class="go" href="${f.url}" target="_blank" rel="noopener">${esc(f.label)}</a>` : ""}</div>`;
+      ${f.dest ? `<button type="button" class="go navgo" data-ui="nav-end">${esc(f.label)}</button>` : ""}</div>`;
   }
   const p = s.place;
   return `<div class="next">
@@ -59,8 +60,9 @@ export function nextCardHtml(s, heading, { travel = "bike", finished = null } = 
     <div class="addr">${starsHtml(s.stars)} · ${esc(p.address)} · ${plural(p.posters, "poster")} ·
       <span class="${p.access === "ask" ? "ask" : ""}">${accessText(p)}</span></div>
     ${p.notes ? `<div class="stop-notes">${esc(p.notes)}</div>` : ""}
-    <div class="go-row"><a class="go" href="${gmapsUrl(p, { mode: travel })}" target="_blank" rel="noopener">Navigate</a>
+    <div class="go-row">${btn("nav", p.place_id, "Navigate", "go navgo")}
       ${btn("posted", p.place_id, "Posted ✓", "go posted")}${btn("nope", p.place_id, "Can't ✗", "go nope")}</div>
+    <a class="gmaps" href="${gmapsUrl(p, { mode: travel })}" target="_blank" rel="noopener">Google Maps ↗</a>
   </div>`;
 }
 
@@ -83,7 +85,8 @@ export function rowHtml(s, label, eta = null, travel = "bike") {
         <select data-act="status" data-id="${esc(p.place_id)}" aria-label="Result for ${esc(p.name)}">${options}</select>
         ${btn("note", p.place_id, s.res?.note ? "Edit note" : "Add note")}
         ${st ? btn("undo", p.place_id, "Undo ↺", "undo") : ""}
-        <a href="${gmapsUrl(p, { mode: travel })}" target="_blank" rel="noopener">Directions</a>
+        ${btn("nav", p.place_id, "Navigate")}
+        <a href="${gmapsUrl(p, { mode: travel })}" target="_blank" rel="noopener">Google Maps ↗</a>
       </div>
     </div>
   </li>`;
