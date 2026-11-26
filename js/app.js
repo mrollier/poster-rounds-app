@@ -66,7 +66,6 @@ let way = { budget: 15, ...store.get("way", {}) };       // On my way: {from, to
 let zonesSaved = store.get("zones", null);               // Zones: {key, zones}
 let fitted = "";                                         // re-zoom the map only when the view changes
 let routeTravel = "bike", finishedDest = null, zonePark = null; // for the Navigate buttons
-let lineFrom = null;                                     // where the route line starts (see renderRoute)
 const saveView = () => { store.set("view", view); store.set("filters", filters); };
 
 const skip = () => new Set(filters.skip);
@@ -174,7 +173,7 @@ function renderWay(kept) {
   </details>`;
   if (!ready) {
     $("next").innerHTML = nextCardHtml(null, "", { finished: { text: "Set where you start and where you're going (above)." } });
-    $("mini").textContent = "On my way: set where you start and end";
+    if (!navigating()) $("mini").textContent = "On my way: set where you start and end";
     clearRoute(kept, s => wayButtons(s));
     return;
   }
@@ -232,10 +231,9 @@ function renderRoute(o) {
     .map(s => pos.has(s) ? pinOf(s, pos.get(s), o.pinExtra?.(s) || "") : { ...pinOf(s, "", o.pinExtra?.(s) || ""), cls: done(s) ? "faded" : "dim" });
   for (const e of o.endPins || []) pins.push({ lat: +e.lat, lon: +e.lon, label: e.label, cls: "way", color: "#1a73e8", title: e.label, popup: esc(e.label), z: 3000 });
   drawPins(pins);
-  // The line starts where I was when it was last drawn, until I'm 100 m further: then the route server
-  // isn't asked again for every few steps.
-  if (!lineFrom || dist(lineFrom, from) > 100) lineFrom = from;
-  if (!navigating()) drawRoute([lineFrom, ...remaining.slice(0, o.linkLimit).map(s => s.place), ...(withEnd ? [o.end] : [])], o.travel);
+  // The line shows the planned trip from its start (not from where I am now): it stays put while I move,
+  // so the route server isn't asked again every few steps and the line doesn't flicker.
+  if (!navigating()) drawRoute([o.start, ...remaining.slice(0, o.linkLimit).map(s => s.place), ...(withEnd ? [o.end] : [])], o.travel);
   if (o.fitKey !== fitted) {
     fitted = o.fitKey;
     fitTo([o.start, ...remaining.slice(0, 12).map(s => s.place), ...(o.end ? [o.end] : [])].filter(Boolean));
@@ -285,7 +283,7 @@ function renderZones(kept, all) {
   $("next").innerHTML = nextCardHtml(null, "", { finished: { text: zs.length
     ? "Pick a zone: tap it on the map, or open it from the list. Bike to the P, then walk the loop."
     : "No stops left with these filters." } });
-  $("mini").textContent = `${zs.length} zones: tap one on the map`;
+  if (!navigating()) $("mini").textContent = `${zs.length} zones: tap one on the map`;
   $("stats").innerHTML = statsHtml([[`${stopsIn.filter(done).length}/${stopsIn.length}`, "stops done"],
     [String(zs.filter(q => q.total > 1).length), "walking loops"], [String(zs.filter(q => q.done === q.total).length), "zones finished"]]);
   $("links").innerHTML = "";
@@ -653,6 +651,7 @@ async function refresh(loud = false) { // loud: say so when offline (only at sta
 
 const LOW_ACCURACY = 100; // metres: above this, say the blue dot may be off
 let follow = false, locationStarted = false, lastRenderFrom = null;
+let blocked = false, lowHidden = false; // location permission refused; "Hide" tapped on the low-accuracy note
 
 function locMessage(text, { bad = false, retry = false } = {}) {
   $("loc-msg").hidden = !text;
@@ -665,16 +664,21 @@ function startLocation() {
   if (locationStarted) return;
   locationStarted = true;
   locMessage("Finding your location…");
-  setTimeout(() => { if (!lastPosition() && !$("loc-msg").classList.contains("bad"))
+  setTimeout(() => { if (!lastPosition() && !blocked)
     locMessage("No location fix yet. Step outside or wait a moment."); }, 15000);
   watchWhileVisible(pos => {
+    blocked = false;
     setMe(pos);
     navUpdate(pos);
-    locMessage(pos.accuracy > LOW_ACCURACY ? `Low accuracy (±${pos.accuracy} m): the blue dot may be off.` : "");
-    // "Nearest stop" depends on where I am: re-sort after moving 50 m or more.
-    if (!lastRenderFrom || dist(lastRenderFrom, pos) > 50) { lastRenderFrom = pos; render(); }
+    const rough = pos.accuracy > LOW_ACCURACY;
+    if (!rough) lowHidden = false;
+    locMessage(rough && !lowHidden ? `Low accuracy (±${pos.accuracy} m): the blue dot may be off.` : "");
+    // "Nearest stop" depends on where I am: re-sort after moving 50 m or more. A rough fix doesn't count,
+    // and neither does drift within the fix's own accuracy: the card shouldn't change while you read it.
+    if (!lastRenderFrom || (!rough && dist(lastRenderFrom, pos) > Math.max(50, pos.accuracy))) { lastRenderFrom = pos; render(); }
   }, (code, msg) => {
     if (code === 2 && lastPosition()) return; // a short GPS hiccup: keep showing the last position
+    if (code === 1) blocked = true;
     locMessage(msg, { bad: true, retry: code === 1 });
   });
 }
@@ -683,17 +687,18 @@ function setFollowing(on, zoom) {
   follow = on;
   $("follow-btn").setAttribute("aria-pressed", String(on));
   setFollow(on, lastPosition(), zoom);
-  if (on && !lastPosition()) locMessage("Waiting for your location…");
+  if (on && !lastPosition() && !blocked) locMessage("Waiting for your location…");
 }
 $("follow-btn").onclick = () => setFollowing(!follow);
 onUserPan(() => { if (follow) setFollowing(false); }); // panning by hand means "let me look around"
-$("loc-hide").onclick = () => locMessage("");
+$("loc-hide").onclick = () => { lowHidden = true; locMessage(""); };
 $("loc-retry").onclick = () => { locMessage("Finding your location…"); restartWatching(); };
 
 // ---------- In-app navigation ----------
 
 
 function beginNav(dest, travel) {
+  if (blocked) return toast("Location is blocked, so the app can't guide you. Use the Google Maps link instead.", 8000);
   closePopup();
   setSheet("min");                 // the whole screen for the map
   drawRoute(null);                 // the trip's line makes way for the route to this place
@@ -703,20 +708,26 @@ function beginNav(dest, travel) {
 }
 function endNav() {
   stopNav();
+  setFollowing(false);             // follow-me was for the navigation: the map is yours again
   render();                        // the trip's line comes back
 }
 
 onNavChange(st => {
   $("nav").hidden = !st;
   if (!st) return;
+  // Arrived somewhere that isn't a stop (the bike spot, home, your destination): nothing to tick off,
+  // so navigation simply ends and the trip's line comes back (e.g. the zone's walking loop).
+  if (st.arrived && !st.id) { toast(`You're at ${st.name}.`); return endNav(); }
   $("nav-to").textContent = st.arrived ? `You're at ${st.name}` : `To ${st.name}`;
   $("nav-left").textContent = st.waiting ? "Waiting for your location…"
-    : st.arrived ? "" : `${distText(st.metres)} · ${Math.max(1, Math.round(st.mins))} min`;
+    : st.arrived ? "" : `${distText(st.metres)} · ${st.mins < 1 ? "<1" : Math.round(st.mins)} min`;
   $("nav").classList.toggle("arrived", !!st.arrived);
   $("mini").textContent = `${st.arrived ? "Arrived" : $("nav-left").textContent} · ${st.name}`;
   // Arrived at a stop: tick it off right here. Built only when that changes, not on every GPS fix:
   // rebuilding the buttons under a finger would swallow the tap.
-  const acts = st.arrived && st.id && findStop(st.id)
+  const target = st.id && findStop(st.id);
+  // (A teammate may have ticked it off meanwhile: then there's nothing left to tap.)
+  const acts = st.arrived && target && !done(target)
     ? `<button type="button" class="done" data-act="posted" data-id="${esc(st.id)}">Posted ✓</button>
        <button type="button" data-act="nope" data-id="${esc(st.id)}">Can't ✗</button>` : "";
   if ($("nav-acts").dataset.html !== acts) { $("nav-acts").innerHTML = acts; $("nav-acts").dataset.html = acts; }

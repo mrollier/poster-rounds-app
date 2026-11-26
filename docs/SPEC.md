@@ -199,8 +199,13 @@ everyone after the next poll. Send `location_source` gps/tap (stored as app-gps/
 - **Navigate** (card, popups, list) starts in-app navigation: the sheet drops to its strip, follow-me at zoom 17,
   a banner "To <place> · 850 m · 4 min · ✕". Distance = along the route line from the nearest point; time =
   the route's duration × the share still to go. More than 50 m off the line twice in a row (at most every 20 s):
-  a new route from here. Within 30 m: "You're at <place>" with Posted ✓ / Can't ✗; a result for that place ends
-  navigation. No turn-by-turn instructions.
+  a new route from here (the last good line stays if the server can't be reached). Within 30 m, or at the end of
+  the line (it stops at the street): "You're at <place>" with Posted ✓ / Can't ✗; a result for that place ends
+  navigation. Fixes rougher than ±50 m don't count for arriving or re-routing; more than 80 m away again
+  undoes "arrived". A destination that isn't a stop (the P, home, B) ends navigation on arrival. Ending
+  navigation also ends follow-me. No turn-by-turn instructions.
+- **Trip lines** (On my way, a zone) run from the trip's start, not from the moving GPS position, so they don't
+  change while you move. All left has no line.
 - **Google Maps** stays as a fallback: a small "Google Maps ↗" link on the card and list rows, and the
   multi-stop links in the sheet (address for `location_source = basisregisters`, else `lat,lon`; max 3
   waypoints + destination per link).

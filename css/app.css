@@ -148,14 +148,14 @@ button, input, select { font: inherit; color: inherit; }
   background: var(--brand); color: #fff; border-radius: 6px; text-decoration: none; font-weight: 800; font-size: 1.1rem;
 }
 .go-row { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; margin-top: 8px; }
-.go-row > * { overflow-wrap: anywhere; } /* one line on phones; wraps (never sticks out) with large text */
+.go-row > * { white-space: nowrap; } /* one line; the font below is capped so it always fits */
 .go-row a.go { margin-top: 0; font-size: 1rem; }
 .next .stop-notes { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
 .go-row button {
   min-height: 52px; padding: 0 4px; line-height: 1.1; border: 3px solid var(--ink); border-radius: 6px; background: var(--paper);
-  font-weight: 800; font-size: 1rem; cursor: pointer;
+  font-weight: 800; font-size: min(1rem, 4.4vw); cursor: pointer; /* grows with large text only while it fits */
 }
-.go-row .nope { font-size: .95rem; color: var(--warn); border-color: var(--warn); }
+.go-row .nope { font-size: min(.95rem, 4.2vw); color: var(--warn); border-color: var(--warn); }
 /* Navigate: the black button (on the card, and "Navigate home" when all is done). */
 .next .navgo { background: var(--brand); color: #fff; border-color: var(--brand); }
 .next.finished .navgo { width: 100%; min-height: 52px; margin-top: 10px; border-radius: 6px; font-weight: 800; font-size: 1.1rem; cursor: pointer; }
@@ -245,7 +245,9 @@ li.is-later .badge { border-style: dashed; }
 .seg.wrap label { flex: 1 1 40%; border: 2px solid var(--ink); border-radius: 6px; overflow: hidden; }
 .seg.wrap label + label span { border-left: 0; }
 .stars { letter-spacing: 1px; white-space: nowrap; font-weight: 700; }
-.bar .modes span { font-size: .85rem; white-space: normal; } /* large text: "On my way" may take two lines, never cut off */
+/* One line always: the tabs' text grows with large text settings only as far as the bar has room (4% of
+   the screen width), so "On my way" is never cut off and never wraps. */
+.bar .modes span { font-size: min(.85rem, 4vw); }
 
 /* ---------- Mode controls in the sheet ---------- */
 .mode-box:empty { display: none; }

@@ -94,12 +94,16 @@ export function setMe(pos) {
   }
   meDot.setLatLng(ll);
   meCircle.setLatLng(ll).setRadius(pos.accuracy);
-  if (following) map.setView(ll, Math.max(map.getZoom(), 16)); // also zooms in on the first fix
+  // Keep the zoom you chose (you may have zoomed out to look ahead); only the first fix after
+  // switching follow on zooms in.
+  if (following) { map.setView(ll, zoomIn ? Math.max(map.getZoom(), zoomIn) : map.getZoom()); zoomIn = 0; }
 }
 
 // Follow-me: keep the map centred on the blue dot. Dragging the map yourself switches it off.
+let zoomIn = 0;
 export function setFollow(on, pos, zoom = 16) {
   following = on;
+  zoomIn = on && !pos ? zoom : 0; // no position yet: zoom in when the first one comes
   if (on && pos) map.setView([pos.lat, pos.lon], Math.max(map.getZoom(), zoom));
 }
 export function onUserPan(cb) { map.on("dragstart", cb); }
