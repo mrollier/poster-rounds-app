@@ -3,12 +3,12 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import path from "node:path";
 import { orderStops, tripTime, computeWay, buildZones } from "../js/routes.js";
-import { priority } from "../js/logic.js";
+import { stars, eventWeights } from "../js/logic.js";
 import { readTab, DATA } from "./csv.js";
 
 const places = readTab("places");
-const campaign = readTab("campaigns")[0];
-const stops = places.filter(p => priority(p, campaign) > 0);
+const weights = eventWeights(readTab("types"), "AI Safety");
+const stops = places.filter(p => stars(p, weights) > 0);
 const racks = JSON.parse(fs.readFileSync(path.join(DATA, "racks-gent.json"), "utf8")).racks.map(([lat, lon]) => ({ lat, lon }));
 const centre = { lat: 51.0543, lon: 3.7174 };
 

@@ -1,19 +1,20 @@
 // Pure business rules: no DOM, no network, no localStorage. Everything here is unit-tested in tests/.
 
-// ---------- Priority (spec §2.1) ----------
+// ---------- Importance stars and event types (spec §2.1) ----------
 
-// A place's tags are a space- (or comma-) separated list, e.g. "students-science entrepreneurs".
-export const tagsOf = place => String(place.tags || "").split(/[\s,]+/).filter(Boolean);
+// The Types tab has one column per kind of event, e.g. "ev:Music", with a weight 0–3 per type of place:
+// how well that type of place reaches the audience of that kind of event. 0 = not in that event's preset.
+export const eventTypes = types => Object.keys(types[0] || {}).filter(k => k.startsWith("ev:")).map(k => k.slice(3));
+export const eventWeights = (types, ev) => Object.fromEntries(types.map(t => [t.type, Number(t["ev:" + ev]) || 0]));
 
-// score = best (campaign weight of a tag × place importance). Unknown tags weigh 0.
-export function priority(place, campaign) {
-  const imp = Number(place.importance) || 0;
-  const score = Math.max(0, ...tagsOf(place).map(tag => (Number(campaign["w:" + tag]) || 0) * imp));
-  if (score >= 6) return 1;
-  if (score >= 3) return 2;
-  if (score >= 1) return 3;
-  return 0; // 0 = not relevant for this campaign: hidden
+// Stars (1–3) for a place at this kind of event: type weight × the place's own importance (1–3).
+// A type outside the preset (weight 0) that you tick by hand in Filters counts as weight 1.
+// 0 stars only for a place without importance: it stays hidden.
+export function stars(place, weights) {
+  const score = Math.max(1, weights[place.type] || 0) * (Number(place.importance) || 0);
+  return score >= 6 ? 3 : score >= 3 ? 2 : score >= 1 ? 1 : 0;
 }
+export const starText = n => "★".repeat(n) + "☆".repeat(3 - n);
 
 // ---------- Board cleaning cycles (spec §2.2) ----------
 
@@ -91,15 +92,3 @@ export function chunkLinks(targets, mode, per = 4) {
   }
   return out;
 }
-
-// ---------- Adding a place (spec §5) ----------
-
-// Default audience tags per type of place, to pre-fill the form. The volunteer can change them.
-export const TYPE_TAGS = {
-  boards: "general", sci: "students-science", arts: "students-arts", libraries: "general",
-  student: "students-general", museums: "culture", stages: "culture", startups: "entrepreneurs",
-  research: "researchers entrepreneurs", makers: "makers students-science",
-};
-
-// The tags a campaign knows: its "w:<tag>" weight columns.
-export const campaignTags = campaign => Object.keys(campaign).filter(k => k.startsWith("w:")).map(k => k.slice(2));

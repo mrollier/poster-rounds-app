@@ -21,7 +21,7 @@
 
   <header class="bar">
     <div id="modes" class="seg modes" role="radiogroup" aria-label="Route">
-      <label><input type="radio" name="mode" value="all"><span>Everything left</span></label>
+      <label><input type="radio" name="mode" value="all"><span>All left</span></label>
       <label><input type="radio" name="mode" value="way"><span>On my way</span></label>
       <label><input type="radio" name="mode" value="zones"><span>Zones</span></label>
     </div>
@@ -51,7 +51,7 @@
     </div>
     <div class="sheet-body" id="sheet-body">
       <button type="button" id="sheet-toggle" class="sheet-toggle" aria-expanded="false" aria-controls="sheet-more">
-        <span class="grip" aria-hidden="true"></span><span id="sheet-toggle-text">Show all stops</span>
+        <span class="grip" aria-hidden="true"></span><span id="sheet-toggle-text">Show all stops</span><span id="mini" class="mini"></span>
       </button>
       <div id="mode-box" class="mode-box"></div>
       <div id="next"></div>
@@ -106,14 +106,17 @@
   <dialog id="filters" class="dlg filters" aria-labelledby="filters-title">
     <form method="dialog">
       <h2 id="filters-title">Filters</h2>
+      <fieldset id="f-event-box"><legend>What kind of event?</legend><div id="f-event" class="seg wrap"></div>
+        <p class="hint">Each kind comes with its own choice of places; fine-tune it under "Types of place".</p></fieldset>
+      <fieldset><legend>Importance</legend><div id="f-min" class="seg"></div></fieldset>
       <fieldset><legend>How you travel</legend><div id="f-travel" class="seg"></div></fieldset>
-      <fieldset><legend>Priority</legend><div id="f-prio" class="seg"></div></fieldset>
-      <fieldset>
-        <legend id="types-sum">Types of place</legend>
-        <div class="btns"><button type="button" class="btn" id="types-all">Include all</button>
-          <button type="button" class="btn" id="types-none">Skip all</button></div>
+      <details class="way">
+        <summary><span id="types-sum">Types of place</span></summary>
+        <div class="btns"><button type="button" class="btn small" id="types-preset">Back to preset</button>
+          <button type="button" class="btn small" id="types-all">All</button>
+          <button type="button" class="btn small" id="types-none">None</button></div>
         <div id="f-types" class="types"></div>
-      </fieldset>
+      </details>
       <div class="dlg-btns"><button value="ok" class="btn primary">Done</button></div>
     </form>
   </dialog>
@@ -127,10 +130,7 @@
       <input id="a-name" maxlength="100" required>
       <label for="a-type">Type of place</label>
       <select id="a-type"></select>
-      <label for="a-tags">Audience tags</label>
-      <input id="a-tags" maxlength="120" autocapitalize="none" spellcheck="false">
-      <p class="hint" id="a-tags-hint"></p>
-      <fieldset><legend>Importance</legend><div class="seg" id="a-imp"></div></fieldset>
+      <fieldset><legend>How good a spot is it?</legend><div class="seg" id="a-imp"></div></fieldset>
       <fieldset><legend>Ask first, or hang freely?</legend><div class="seg" id="a-access"></div></fieldset>
       <label for="a-posters">How many posters fit</label>
       <input id="a-posters" type="number" inputmode="numeric" min="1" max="10" value="1">

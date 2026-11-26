@@ -1,23 +1,33 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { priority, cycleStart, brusselsToday, isDone, cycleFor, gmapsUrl } from "../js/logic.js";
+import { stars, eventTypes, eventWeights, starText, cycleStart, brusselsToday, isDone, cycleFor, gmapsUrl } from "../js/logic.js";
 import { readTab } from "./csv.js";
 
 const places = readTab("places");
-const campaign = readTab("campaigns").find(c => c.campaign_id === "2026-12-ai-safety-lecture");
+const types = readTab("types");
 
-test("priority on the seed data gives 54 / 56 / 88 for the AI-safety lecture", () => {
-  const count = { 0: 0, 1: 0, 2: 0, 3: 0 };
-  places.forEach(p => count[priority(p, campaign)]++);
-  assert.deepEqual(count, { 0: 0, 1: 54, 2: 56, 3: 88 });
+test("stars on the seed data: AI Safety gives about the old priorities (53 / 56 / 89)", () => {
+  const w = eventWeights(types, "AI Safety"), count = { 0: 0, 1: 0, 2: 0, 3: 0 };
+  places.forEach(p => count[stars(p, w)]++);
+  assert.deepEqual(count, { 0: 0, 1: 89, 2: 56, 3: 53 });
 });
 
-test("priority: unknown tags weigh 0, best tag wins", () => {
-  const c = { "w:a": "3", "w:b": "1" };
-  assert.equal(priority({ tags: "zzz", importance: "3" }, c), 0);
-  assert.equal(priority({ tags: "b a", importance: "2" }, c), 1); // 3 × 2 = 6
-  assert.equal(priority({ tags: "b", importance: "3" }, c), 2);   // 1 × 3 = 3
-  assert.equal(priority({ tags: "b", importance: "1" }, c), 3);   // 1 × 1 = 1
+test("event types come from the ev: columns of the Types tab", () => {
+  assert.deepEqual(eventTypes(types), ["AI Safety", "Animal Welfare", "Music", "Poetry"]);
+  assert.deepEqual(eventTypes([]), []);
+  assert.equal(eventWeights(types, "Poetry").startups, 0);
+  assert.equal(eventWeights(types, "Music").stages, 3);
+});
+
+test("stars: weight × importance; a type outside the preset counts as weight 1", () => {
+  const w = { a: 3, b: 1, c: 0 };
+  assert.equal(stars({ type: "a", importance: "2" }, w), 3); // 3 × 2 = 6
+  assert.equal(stars({ type: "b", importance: "3" }, w), 2); // 1 × 3 = 3
+  assert.equal(stars({ type: "b", importance: "1" }, w), 1);
+  assert.equal(stars({ type: "c", importance: "3" }, w), 2); // ticked by hand: 1 × 3
+  assert.equal(stars({ type: "zzz", importance: "1" }, w), 1);
+  assert.equal(stars({ type: "a", importance: "" }, w), 0);  // no importance: hidden
+  assert.equal(starText(2), "★★☆");
 });
 
 test("cycleStart: 1st and 3rd Friday", () => {

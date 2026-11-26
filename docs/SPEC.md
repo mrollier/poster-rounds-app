@@ -30,24 +30,28 @@ the live app always reads the sheet).
 | Tab | Key | Purpose |
 |---|---|---|
 | Places | `place_id` | Every poster place: `city, name, org, type, tags, importance, access, posters, address, lat, lon, hours, open_days, notes, location_source, active, added_by, added_at` |
-| Campaigns | `campaign_id` | One event: `name, city, event_date, postering_from, postering_until, posters_total, event_url, active`, plus one weight column per tag: `w:students-science`, `w:entrepreneurs`, … (0–3) |
+| Campaigns | `campaign_id` | One event: `name, city, event_date, postering_from, postering_until, posters_total, event_url, active, event_type` (`event_type` = one of the `ev:` names in Types; older `w:<tag>` columns are no longer used) |
 | Results | (`campaign_id`, `place_id`, `cycle`) | Latest result: `status, posters, note, by, at` |
 | Cities | `city` | `centre_lat, centre_lon, zoom, board_cleaning, board_rules, board_rules_source` |
-| Types | `type` | The 10 types of place: `label, color` (filter + pin colour) |
+| Types | `type` | The types of place: `label, color` (filter + pin colour), plus one weight column per kind of event: `ev:AI Safety`, `ev:Animal Welfare`, `ev:Music`, `ev:Poetry`, … (0–3) |
 | Log | – | Append-only audit of writes (backend only; the app never reads it) |
 
-### 2.1 Priority (computed, never stored)
+### 2.1 Importance stars (computed, never stored)
 
-For the selected campaign:
+Each kind of event (an `ev:<name>` column in Types) gives every type of place a weight 0–3: how well
+that type reaches the event's audience. The kind of event comes from the campaign's `event_type`, and a
+volunteer can switch it in Filters. For that kind of event:
 
 ```
-score(place) = max over tag in place.tags of  campaign["w:" + tag] × place.importance
-priority = 1 if score ≥ 6, 2 if score ≥ 3, 3 if score ≥ 1, hidden if 0
+weight = max(1, Types[place.type]["ev:" + event])      (a type outside the preset counts as 1)
+score  = weight × place.importance                     (importance 1–3 in Places)
+stars  = 3 if score ≥ 6, 2 if score ≥ 3, 1 if score ≥ 1, hidden if 0 (no importance)
 ```
 
-Unknown tags count as weight 0. Put this in one small pure function with unit tests
-(the seed data must give 54 places priority 1, 56 priority 2 and 88 priority 3 for the AI-safety
-campaign – check with `data/*.csv`).
+Shown as ★★☆ everywhere; the word "priority" is not used. The **preset** of a kind of event = the
+types with weight > 0: those are ticked in Filters when you pick it, the rest unticked (you can tick
+them by hand). Unit tests: the seed data gives 53 / 56 / 89 places with 3 / 2 / 1 stars for AI Safety
+(close to the old 54 / 56 / 88 priorities).
 
 ### 2.2 City boards and cleaning cycles
 
@@ -113,10 +117,11 @@ Settings (name, code, home, campaign) are reachable later from a small menu.
 ### 4.3 Main screen (phone layout)
 
 - **Map fills the screen.** On top: a compact bar with the route mode switch
-  (`Everything left · On my way · Zones`) and a filter button.
-- **Bottom sheet** (draggable: peek / half / full):
+  (`All left · On my way · Zones`) and a filter button.
+- **Bottom sheet** (draggable: min / peek / half / full; min is a one-line strip with the next stop, so
+  the map fills the screen):
   - peek: the **next-stop card**: name, address, posters, "ask first / hang freely", buttons
-    **Navigate**, **Posted ✓**, **Not possible ✗**.
+    **Navigate**, **Posted ✓**, **Can't ✗** (each on one line).
   - half/full: stats (done / posters hung / km and time to go), the ordered list of stops with
     per-stop result menu, note, undo, and Google Maps links.
 - Tap targets ≥ 44 px, high contrast (readable in daylight), works with one thumb.
@@ -133,15 +138,17 @@ Settings (name, code, home, campaign) are reachable later from a small menu.
 
 ### 4.5 Filters
 
-- Priority: `All · 1–2 · 1` (from §2.1).
-- Types of place: the 10 types from the Types tab, with colour swatch and count, "Include all / Skip all".
+- What kind of event: the `ev:` columns of Types (default: the campaign's `event_type`).
+- Importance: `All · ★★ and up · ★★★` (from §2.1).
+- Types of place (a drop-down): the types from the Types tab, with colour swatch and count, ticked
+  per the event's preset; "Back to preset / All / None".
 - Filters persist on the phone. Skipped stops leave every route and the counts.
 
 ### 4.6 Route modes
 
 Port the algorithms from the prototype (search for the function names):
 
-1. **Everything left** (`orderStops`, `combined`): all remaining stops, nearest-first + 2-opt,
+1. **All left** (`orderStops`, `combined`): all remaining stops, nearest-first + 2-opt,
    from my position (or home). "Re-plan from here" button.
 2. **On my way** (`computeWay`, `wayVariant`, `updateWay`): from A to B (my position, home, a
    tapped point, or a stop's pin), with an extra-time budget (5/15/30/60 min); cheapest insertion
@@ -168,7 +175,7 @@ Port the algorithms from the prototype (search for the function names):
 ### 4.7 Results
 
 - Next-stop card and every pin popup: **Posted ✓** (asks how many if the place has > 1 poster),
-  **Not possible ✗** (optional reason → note), **Undo** on done stops.
+  **Can't ✗** (status `nope`, optional reason → note), **Undo** on done stops.
 - List rows: result menu (all statuses), note, undo.
 - Optimistic UI: apply locally at once, queue the write (localStorage), send in order, retry with
   backoff when offline; show a small "3 changes waiting to sync" indicator.
@@ -178,8 +185,8 @@ Port the algorithms from the prototype (search for the function names):
 ### 4.8 Add a place (from the street)
 
 Button "+ Add place": choose position (my GPS position, or tap on the map), then a short form:
-name, type (10 types), tags (pre-filled from the type: see the mapping in §5), importance (1–3,
-default 2), access (ask/free), posters (default 1), notes. POST `addPlace`; the place appears for
+name, type, importance (★ / ★★ / ★★★, default ★★; the form previews the stars for the current kind of
+event), access (ask/free), posters (default 1), notes. POST `addPlace`; the place appears for
 everyone after the next poll. Send `location_source` gps/tap (stored as app-gps/app-tap).
 
 ### 4.9 Navigation links
@@ -188,20 +195,9 @@ Google Maps directions URLs (`https://www.google.com/maps/dir/?api=1&destination
 Use the address for places from the address register (`location_source = basisregisters`), else
 `lat,lon`. Max 3 waypoints + destination per link (phones) – chunk longer routes like the prototype.
 
-## 5. Type → default tags (for the Add-place form)
+## 5. Tags
 
-| type | default tags |
-|---|---|
-| boards | general |
-| sci | students-science |
-| arts | students-arts |
-| libraries | general |
-| student | students-general |
-| museums | culture |
-| stages | culture |
-| startups | entrepreneurs |
-| research | researchers entrepreneurs |
-| makers | makers students-science |
+The `tags` column of Places is free metadata; it no longer drives anything. Added places get `tags = type`.
 
 ## 6. What is deliberately left out
 
@@ -211,7 +207,7 @@ base map, result-log export/import, KML/GeoJSON export, printing. Don't add acco
 ## 7. Quality bar
 
 - Lighthouse (mobile): PWA installable, accessibility ≥ 90, works offline after first load.
-- Unit tests (Node's built-in `node --test`, no dependencies) for: priority, cycleStart for several
+- Unit tests (Node's built-in `node --test`, no dependencies) for: stars, cycleStart for several
   dates (incl. month boundaries), buildZones on the seed data (deterministic), orderStops (loop
   shorter than random order), result merge (last write wins), offline queue.
 - One Playwright smoke test (optional) against a mocked backend.

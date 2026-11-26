@@ -7,13 +7,13 @@ changes needed for that.
 
 **Live:** https://mrollier.github.io/poster-rounds-app/
 
-- A map of every poster place for the current campaign, coloured by type, with priorities worked out from the
-  campaign's audience weights.
+- A map of every poster place for the current campaign, coloured by type, with **importance stars** (★★☆)
+  for the kind of event you plan for: AI Safety, Animal Welfare, Music or Poetry.
 - Three ways to plan a round:
-  - **Everything left:** all stops still to do, in a short order from where you are.
+  - **All left:** all stops still to do, in a short order from where you are.
   - **On my way:** stops that fit an extra-time budget on a trip from A to B.
   - **Zones:** park the bike, walk a loop, bike on.
-- **Posted ✓ / Not possible ✗ / Undo**, shared with the team through the sheet. Ticks show at once and are sent
+- **Posted ✓ / Can't ✗ / Undo**, shared with the team through the sheet. Ticks show at once and are sent
   in the background; offline they wait on the phone.
 - **Live location** (blue dot, follow-me), **Google Maps links** for every leg, and **+ Add place** for new
   spots found on the street.
@@ -39,7 +39,7 @@ Phone (this web app, GitHub Pages)  ──HTTPS──▶  Apps Script web app (b
 ```
 index.html, css/app.css, config.js   the page, its styles, public settings (backend URL, map tiles)
 js/app.js        state, buttons, syncing          js/views.js    HTML for cards, list rows, popups
-js/logic.js      priority, cleaning cycles, links js/routes.js   the route algorithms (pure)
+js/logic.js      stars, cleaning cycles, links   js/routes.js   the route algorithms (pure)
 js/modes.js      the three modes as plans         js/geo.js      distances and travel times
 js/sync.js       merge results + offline outbox   js/data.js     backend calls, localStorage
 js/map.js        Leaflet: pins, zones, blue dot   js/location.js GPS
@@ -107,12 +107,17 @@ Add a row to the **Campaigns** tab:
 | `city` | `Gent` | must match a row in Cities; only that city's places are loaded |
 | `postering_from`, `postering_until`, `posters_total` | | for your own planning |
 | `active` | `TRUE` | set the old campaign to `FALSE` when it's over |
-| `w:<tag>` | `3` | weight 0–3 per audience tag |
+| `event_type` | `AI Safety` | the kind of event: one of the `ev:` columns in Types (volunteers can switch it in Filters) |
 
-Priority per place = the best **weight × importance** over its tags: 6 or more is priority 1, 3–5 is
-priority 2, 1–2 is priority 3, and 0 means the place is hidden for this campaign. A new tag only needs a new
-`w:<tag>` column and the tag on the places. When more than one campaign is active, volunteers choose one in the
-setup screen.
+### Importance stars and kinds of event
+
+The **Types** tab has one column per kind of event, e.g. `ev:Music`, with a weight 0–3 per type of place:
+how well that type of place reaches that audience. Stars per place = **weight × the place's importance**
+(1–3 in Places): 6 or more is ★★★, 3–5 is ★★, 1–2 is ★. Types with weight 0 are left out of that kind of
+event's preset in Filters; a volunteer can still tick them, and they then count as weight 1.
+
+- **A new kind of event** (say Climate): add a column `ev:Climate` to Types and fill in 0–3 per type.
+- **A new type of place**: add a row to Types (key, label, colour, weights), then use the key in Places.
 
 ## A new city
 
@@ -146,7 +151,7 @@ setup screen.
 
 - **Distances** are straight-line × 1.3, at 15 km/h by bike and 4.5 km/h on foot, plus 3 min per city board
   and 5 min per other stop. Good enough for ordering; Google Maps does the real routing.
-- **Orders are per phone.** Everything left, On my way and Zones are remembered on each phone; only results and
+- **Orders are per phone.** All left, On my way and Zones are remembered on each phone; only results and
   places are shared.
 - **Sync:** results are fetched every 30 s and when the app comes back on screen; places every 5 minutes. When
   two people change the same stop, the later change wins.
@@ -159,7 +164,7 @@ setup screen.
 ## Tests
 
 `node --test` covers:
-- priorities on the seed data (54 / 56 / 88);
+- stars on the seed data (53 / 56 / 89 for AI Safety) and the event presets;
 - cleaning cycles across month and year boundaries;
 - the route algorithms;
 - merging results and the offline outbox;

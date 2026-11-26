@@ -4,7 +4,7 @@ import { initMap, showCity, drawPins, closePopup, setHome, setMe, setFollow, onU
   drawZones, zoneLabelsFromZoom, esc } from "./map.js";
 import { watchWhileVisible, restartWatching, lastPosition } from "./location.js";
 import { setup, toast, ask, $ } from "./ui.js";
-import { priority, cycleStart, brusselsToday, cycleFor, resultKey, STATUS_LABEL, gmapsUrl, chunkLinks } from "./logic.js";
+import { stars, eventTypes, eventWeights, cycleStart, brusselsToday, cycleFor, resultKey, STATUS_LABEL, gmapsUrl, chunkLinks } from "./logic.js";
 import { mergeResults, withPending, createQueue } from "./sync.js";
 import { dist } from "./geo.js";
 import { tripTime } from "./routes.js";
@@ -31,14 +31,18 @@ const city = () => boot.cities.find(c => c.city === campaign()?.city);
 const boardCycle = () => cycleStart(city()?.board_cleaning, brusselsToday());
 const keyOf = place => resultKey({ campaign_id: boot.campaign_id, place_id: place.place_id, cycle: cycleFor(place, boardCycle()) });
 
-// All stops of this campaign with their type and latest result (ours not yet sent included).
+// The kind of event we plan for: picked in Filters, else the campaign's own, else the first the sheet knows.
+const events = () => eventTypes(boot.types);
+const currentEvent = () => [filters.event, campaign()?.event_type, events()[0]].find(e => e && events().includes(e)) || "";
+
+// All stops of this campaign with their stars, type and latest result (ours not yet sent included).
 function stops() {
-  const c = campaign(), types = Object.fromEntries(boot.types.map(t => [t.type, t]));
+  const w = eventWeights(boot.types, currentEvent()), types = Object.fromEntries(boot.types.map(t => [t.type, t]));
   const results = withPending(synced.map, queue.items, settings.name);
   return boot.places
-    .map(place => ({ place, prio: priority(place, c), type: types[place.type] || { label: place.type, color: "#444" },
+    .map(place => ({ place, stars: stars(place, w), type: types[place.type] || { label: place.type, color: "#444" },
                      res: results[keyOf(place)] || null }))
-    .filter(s => s.prio > 0);
+    .filter(s => s.stars > 0);
 }
 const findStop = id => stops().find(s => s.place.place_id === id);
 
@@ -52,7 +56,7 @@ function origin() {
 
 const view = { mode: "all", zone: null, zgap: 600, ztime: 60, ...store.get("view", {}) };
 if (!["all", "way", "zones"].includes(view.mode)) view.mode = "all";
-const filters = { prio: "all", skip: [], travel: "bike", ...store.get("filters", {}) };
+const filters = { min: "1", skip: [], skipFor: null, event: null, travel: "bike", ...store.get("filters", {}) };
 let allOrder = store.get("allOrder", null);              // Everything left: {key, ids}
 let way = { budget: 15, ...store.get("way", {}) };       // On my way: {from, to, budget, ids, extra, direct}
 let zonesSaved = store.get("zones", null);               // Zones: {key, zones}
@@ -60,8 +64,20 @@ let fitted = "";                                         // re-zoom the map only
 const saveView = () => { store.set("view", view); store.set("filters", filters); };
 
 const skip = () => new Set(filters.skip);
-const passes = s => !skip().has(s.place.type) && (filters.prio === "all" || s.prio <= +filters.prio);
-const filterKey = () => JSON.stringify([boot.campaign_id, filters.prio, [...filters.skip].sort()]);
+const passes = s => !skip().has(s.place.type) && s.stars >= +filters.min;
+const filterKey = () => JSON.stringify([boot.campaign_id, currentEvent(), filters.min, [...filters.skip].sort()]);
+
+// Each kind of event comes with its preset of place types (weight above 0). Switching to another kind
+// (or a campaign with another default) ticks that preset again; within one kind, your own ticks stay.
+function syncPreset() {
+  const ev = currentEvent();
+  if (filters.skipFor === ev) return;
+  const w = eventWeights(boot.types, ev);
+  filters.skip = ev ? boot.types.filter(t => !w[t.type]).map(t => t.type) : [];
+  filters.skipFor = ev;
+  saveView();
+}
+const distText = m => (m < 1000 ? `${Math.round(m / 10) * 10} m` : `${(m / 1000).toFixed(1)} km`);
 const homeLabel = () => (lastPosition() ? "your position" : settings.home ? "home" : "the city centre");
 
 // ---------- Drawing ----------
@@ -78,6 +94,7 @@ function render() {
   $("modes").querySelector(`input[value="${view.mode}"]`).checked = true;
   setHome(settings.home);
   renderSync();
+  syncPreset();
   const all = stops(), kept = all.filter(passes);
   if (view.mode === "zones") return renderZones(kept, all);
   drawZones(null);
@@ -93,7 +110,7 @@ function renderAll(kept) {
     <button type="button" class="btn small" data-ui="replan">Re-plan from here</button></div>`;
   renderRoute({ kept, route: plan.route, extra: plan.extra, scope: kept, start, end: home, endLabel: "home",
     travel: filters.travel, heading: (k, n) => `Next stop · ${k} of ${n}`, linkLimit: 12,
-    title: "Everything left, in order", finished: home
+    title: "All left, in order", finished: home
       ? { text: "All stops done. On to home!", label: "Navigate home", url: gmapsUrl(home, { mode: filters.travel }) }
       : { text: "All stops done with these filters. Well done!" },
     fitKey: JSON.stringify(["all", filterKey()]) });
@@ -124,6 +141,7 @@ function renderWay(kept) {
   </details>`;
   if (!ready) {
     $("next").innerHTML = nextCardHtml(null, "", { finished: { text: "Set where you start and where you're going (above)." } });
+    $("mini").textContent = "On my way: set where you start and end";
     clearRoute(kept, s => wayButtons(s));
     return;
   }
@@ -146,6 +164,7 @@ function renderRoute(o) {
   const next = remaining.find(s => !st(s)) || remaining.find(s => st(s) === "later");
   const k = next ? o.route.indexOf(next) + 1 : 0;
   $("next").innerHTML = nextCardHtml(next, o.heading(k, o.route.length), { travel: o.travel, finished: o.finished });
+  $("mini").textContent = next ? `${distText(dist(lastPosition() || o.start, next.place))} · ${next.place.name}` : o.finished.text;
 
   // Times: from where I am now (or the trip's start) through what's left. A zone's walking loop
   // always counts from the bike spot: you bike there first.
@@ -190,7 +209,7 @@ function renderRoute(o) {
 function clearRoute(kept, pinExtra) {
   $("stats").innerHTML = ""; $("links").innerHTML = ""; $("stops").innerHTML = "";
   drawRoute(null);
-  drawPins(kept.filter(s => !done(s)).map(s => pinOf(s, s.prio, pinExtra(s))));
+  drawPins(kept.filter(s => !done(s)).map(s => pinOf(s, `${s.stars}★`, pinExtra(s))));
 }
 
 // ---------- Zones ----------
@@ -229,6 +248,7 @@ function renderZones(kept, all) {
   $("next").innerHTML = nextCardHtml(null, "", { finished: { text: zs.length
     ? "Pick a zone: tap it on the map, or open it from the list. Bike to the P, then walk the loop."
     : "No stops left with these filters." } });
+  $("mini").textContent = `${zs.length} zones: tap one on the map`;
   $("stats").innerHTML = statsHtml([[`${stopsIn.filter(done).length}/${stopsIn.length}`, "stops done"],
     [String(zs.filter(q => q.total > 1).length), "walking loops"], [String(zs.filter(q => q.done === q.total).length), "zones finished"]]);
   $("links").innerHTML = "";
@@ -279,17 +299,22 @@ function filtersChanged() {
 }
 
 function renderFilters() {
+  syncPreset();
   const all = stops(), counts = {};
-  all.filter(s => filters.prio === "all" || s.prio <= +filters.prio).forEach(s => { counts[s.place.type] = (counts[s.place.type] || 0) + 1; });
+  all.filter(s => s.stars >= +filters.min).forEach(s => { counts[s.place.type] = (counts[s.place.type] || 0) + 1; });
+  $("f-event-box").hidden = !events().length;
+  $("f-event").innerHTML = seg("event", events().map(e => [e, e]), currentEvent());
   $("f-travel").innerHTML = seg("travel", [["bike", "Bike"], ["walk", "On foot"]], filters.travel);
-  $("f-prio").innerHTML = seg("prio", [["all", "All"], ["2", "1–2"], ["1", "1"]], filters.prio);
+  $("f-min").innerHTML = seg("min", [["1", "All"], ["2", "★★ and up"], ["3", "★★★"]], filters.min);
   $("f-types").innerHTML = typesHtml(boot.types, counts, skip());
   const shown = boot.types.filter(t => counts[t.type]), off = shown.filter(t => skip().has(t.type)).length;
-  $("types-sum").textContent = `Types of place: ${off ? `${off} of ${shown.length} skipped` : `all ${shown.length} included`}`;
+  $("types-sum").textContent = `Types of place: ${shown.length - off} of ${shown.length} included`;
 }
 $("filter-btn").onclick = () => { renderFilters(); $("filters").showModal(); };
 $("f-travel").addEventListener("change", e => { filters.travel = e.target.value; filtersChanged(); });
-$("f-prio").addEventListener("change", e => { filters.prio = e.target.value; filtersChanged(); });
+$("f-min").addEventListener("change", e => { filters.min = e.target.value; filtersChanged(); });
+$("f-event").addEventListener("change", e => { filters.event = e.target.value; filtersChanged(); });
+$("types-preset").onclick = () => { filters.skipFor = null; filtersChanged(); };
 $("f-types").addEventListener("change", e => {
   const set = skip();
   if (e.target.checked) set.delete(e.target.value); else set.add(e.target.value);
@@ -345,23 +370,26 @@ function renderSync() {
   $("sync-btn").setAttribute("aria-label", `${n} change${n === 1 ? "" : "s"} waiting to sync. Tap to try now.`);
 }
 
-// ---------- Bottom sheet: peek (the next stop), half, full ----------
-// Tap the handle to open or close the list; drag it to any height and it snaps to the nearest of the three.
+// ---------- Bottom sheet: min (a strip, to see the whole map), peek (the next stop), half, full ----------
+// Tap the handle to open or close the list; drag it to any height and it snaps to the nearest of the four.
 
 let snap = "peek", peekH = 300, dragged = false;
-const listVisible = () => snap !== "peek" || window.innerWidth >= 900; // desktop: the side panel always shows it
+const MIN_H = 64; // the strip: handle + one line
+const isOpen = to => to === "half" || to === "full";
+const listVisible = () => isOpen(snap) || snap === "dragging" || window.innerWidth >= 900; // desktop: side panel
 function setSheet(to) {
-  const wasPeek = snap === "peek";
+  const wasOpen = isOpen(snap);
   snap = to;
   $("sheet").dataset.snap = to;
   $("sheet").classList.remove("dragging");
   $("sheet-body").style.height = "";
-  $("sheet-more").hidden = to === "peek";
-  $("sheet-toggle").setAttribute("aria-expanded", String(to !== "peek"));
-  $("sheet-toggle-text").textContent = to === "peek" ? "Show all stops" : "Hide the list";
-  if (wasPeek && to !== "peek" && boot) render(); // build the list now that it shows
+  $("sheet-more").hidden = !isOpen(to);
+  $("sheet-toggle").setAttribute("aria-expanded", String(isOpen(to)));
+  $("sheet-toggle-text").textContent = isOpen(to) ? "Hide the list" : "Show all stops";
+  if (!wasOpen && isOpen(to) && boot) render(); // build the list now that it shows
 }
 const closeSheet = () => setSheet("peek");
+// Tap: from the strip back to the card; from the card to the list; from the list back to the card.
 $("sheet-toggle").onclick = () => { if (!dragged) setSheet(snap === "peek" ? "half" : "peek"); dragged = false; };
 
 $("sheet-toggle").addEventListener("pointerdown", e => {
@@ -373,16 +401,19 @@ $("sheet-toggle").addEventListener("pointerdown", e => {
   const move = ev => {
     const dy = ev.clientY - startY;
     if (!dragged && Math.abs(dy) < 8) return; // a tap, not a drag
-    if (!dragged && snap === "peek") { snap = "dragging"; render(); } // build the list as it comes into view
+    if (!dragged) { // the drag starts: show everything, the height decides how much you see
+      if (!isOpen(snap)) { snap = "dragging"; render(); } // build the list as it comes into view
+      $("sheet").dataset.snap = "dragging";
+      $("sheet").classList.add("dragging");
+      $("sheet-more").hidden = false;
+    }
     dragged = true;
-    $("sheet").classList.add("dragging");
-    $("sheet-more").hidden = false;
-    body.style.height = `${Math.max(120, Math.min(full, startH - dy))}px`;
+    body.style.height = `${Math.max(MIN_H, Math.min(full, startH - dy))}px`;
   };
   const up = () => {
     $("sheet-toggle").removeEventListener("pointermove", move);
     if (!dragged) return;
-    const h = body.offsetHeight, targets = { peek: peekH, half: window.innerHeight * 0.62, full };
+    const h = body.offsetHeight, targets = { min: MIN_H, peek: peekH, half: window.innerHeight * 0.62, full };
     setSheet(Object.keys(targets).reduce((a, b) => (Math.abs(targets[b] - h) < Math.abs(targets[a] - h) ? b : a)));
   };
   $("sheet-toggle").addEventListener("pointermove", move);
@@ -478,7 +509,7 @@ $("sync-btn").onclick = flush;
 
 $("add-btn").onclick = async () => {
   closePopup(); closeSheet();
-  const body = await addPlace({ types: boot.types, campaign: campaign() });
+  const body = await addPlace({ types: boot.types, campaign: campaign(), event: currentEvent() });
   if (!body) return;
   // ponytail: if the answer is lost after the sheet saved the place, a retry adds it twice; delete the copy in the sheet.
   queue.add(body);

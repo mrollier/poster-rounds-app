@@ -1,13 +1,15 @@
 // HTML for the next-stop card, the list rows and the pin popups. Only builds strings; app.js wires the buttons.
-// A "stop" here is {place, prio, type: {label, color}, res} where res is the latest result row (or null).
+// A "stop" here is {place, stars, type: {label, color}, res} where res is the latest result row (or null).
 // Buttons carry data-act="posted|nope|undo|note" and data-id="<place_id>"; one click handler serves them all.
 import { esc } from "./map.js";
-import { isDone, FAILED, STATUS_LABEL, gmapsUrl } from "./logic.js";
+import { isDone, FAILED, STATUS_LABEL, gmapsUrl, starText } from "./logic.js";
 
 const statusOf = s => s.res?.status || "";
 const plural = (n, word) => `${n} ${word}${+n === 1 ? "" : "s"}`;
 const accessText = p => (p.access === "ask" ? "ask first" : "hang freely");
 const clock = iso => new Date(iso).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" });
+// "★★☆", read out as "Importance 2 of 3".
+const starsHtml = n => `<span class="stars" role="img" aria-label="Importance ${n} of 3">${starText(n)}</span>`;
 const btn = (act, id, label, cls = "") => `<button type="button" class="${cls}" data-act="${act}" data-id="${esc(id)}">${label}</button>`;
 
 // Pin colour: the type's colour while to do; grey when posted; red when it failed (refused, full, …).
@@ -17,7 +19,7 @@ export function pinOf(s, label, extraButtons = "") {
     lat: +s.place.lat, lon: +s.place.lon, label, title: s.place.name,
     color: FAILED.includes(st) ? "#b00020" : isDone(st) ? "#8a8a8a" : s.type.color,
     cls: isDone(st) ? "faded" : st === "later" ? "later" : "",
-    z: isDone(st) ? -1000 : (4 - s.prio) * 100,
+    z: isDone(st) ? -1000 : s.stars * 100,
     popup: popupHtml(s, extraButtons),
   };
 }
@@ -35,11 +37,11 @@ function resultLine(s) {
 function popupHtml(s, extraButtons) {
   const p = s.place, st = statusOf(s);
   return `<div class="pop"><b>${esc(p.name)}</b><br>${esc(p.address)}<br>
-    ${esc(s.type.label)} · priority ${s.prio}<br>${plural(p.posters, "poster")}, ${accessText(p)}
+    ${starsHtml(s.stars)} · ${esc(s.type.label)}<br>${plural(p.posters, "poster")}, ${accessText(p)}
     ${resultLine(s)}
     <div class="pop-btns">${isDone(st)
       ? btn("undo", p.place_id, "Undo ↺", "popbtn alt")
-      : btn("posted", p.place_id, "Posted ✓", "popbtn") + btn("nope", p.place_id, "Not possible ✗", "popbtn alt")}
+      : btn("posted", p.place_id, "Posted ✓", "popbtn") + btn("nope", p.place_id, "Can't ✗", "popbtn alt")}
       <a class="popbtn alt" href="${gmapsUrl(p)}" target="_blank" rel="noopener">Navigate</a>${extraButtons}</div></div>`;
 }
 
@@ -54,11 +56,11 @@ export function nextCardHtml(s, heading, { travel = "bike", finished = null } = 
   return `<div class="next">
     <div class="next-head">${esc(heading)}${statusOf(s) === "later" ? " (come back later)" : ""}</div>
     <div class="what">${esc(p.name)}</div>
-    <div class="addr">${esc(p.address)} · ${plural(p.posters, "poster")} ·
+    <div class="addr">${starsHtml(s.stars)} · ${esc(p.address)} · ${plural(p.posters, "poster")} ·
       <span class="${p.access === "ask" ? "ask" : ""}">${accessText(p)}</span></div>
     ${p.notes ? `<div class="stop-notes">${esc(p.notes)}</div>` : ""}
     <div class="go-row"><a class="go" href="${gmapsUrl(p, { mode: travel })}" target="_blank" rel="noopener">Navigate</a>
-      ${btn("posted", p.place_id, "Posted ✓", "go posted")}${btn("nope", p.place_id, "Not possible ✗", "go nope")}</div>
+      ${btn("posted", p.place_id, "Posted ✓", "go posted")}${btn("nope", p.place_id, "Can't ✗", "go nope")}</div>
   </div>`;
 }
 
@@ -72,7 +74,7 @@ export function rowHtml(s, label, eta = null, travel = "bike") {
     <div class="badge" style="background:${s.type.color}">${esc(label)}</div>
     <div>
       <div class="stop-name">${esc(p.name)}</div>
-      <div class="stop-meta">${esc(p.address)} · ${plural(p.posters, "poster")} ·
+      <div class="stop-meta">${starsHtml(s.stars)} · ${esc(p.address)} · ${plural(p.posters, "poster")} ·
         <span class="${p.access === "ask" ? "ask" : ""}">${accessText(p)}</span></div>
       ${eta === null ? "" : `<div class="stop-meta">About ${eta} min from now</div>`}
       ${p.notes ? `<div class="stop-notes">${esc(p.notes)}</div>` : ""}

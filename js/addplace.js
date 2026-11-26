@@ -3,7 +3,7 @@
 import { $, toast, ask } from "./ui.js";
 import { pickPoint, esc } from "./map.js";
 import { lastPosition } from "./location.js";
-import { TYPE_TAGS, campaignTags, priority } from "./logic.js";
+import { stars, eventWeights, starText } from "./logic.js";
 import { seg } from "./views.js";
 
 const POOR_FIX = 50; // metres: warn when the GPS position is this uncertain
@@ -23,27 +23,24 @@ async function choosePosition() {
 }
 
 // Resolves the addPlace request body, or null when cancelled.
-export async function addPlace({ types, campaign }) {
+export async function addPlace({ types, campaign, event }) {
   const where = await choosePosition();
   const d = $("add-dlg");
   $("add-form").reset();
   $("add-where").textContent = `Position: ${where.text}`;
   $("a-type").innerHTML = types.map(t => `<option value="${esc(t.type)}">${esc(t.label)}</option>`).join("");
-  $("a-imp").innerHTML = seg("imp", [[1, "1 low"], [2, "2 normal"], [3, "3 high"]], 2);
+  $("a-imp").innerHTML = seg("imp", [[1, "★"], [2, "★★"], [3, "★★★"]], 2);
   $("a-access").innerHTML = seg("access", [["ask", "Ask first"], ["free", "Hang freely"]], "ask");
-  $("a-tags-hint").textContent = `Tags this campaign knows: ${campaignTags(campaign).join(", ")}.`;
   $("a-error").hidden = true;
 
-  // Tags follow the type until you edit them yourself; the priority line shows what the place will get.
-  let tagsEdited = false;
+  // The line under the form shows the stars the place gets for the kind of event you plan for now.
+  const weights = eventWeights(types, event);
   const val = name => d.querySelector(`input[name=${name}]:checked`)?.value;
   const update = () => {
-    if (!tagsEdited) $("a-tags").value = TYPE_TAGS[$("a-type").value] || "general";
-    const prio = priority({ tags: $("a-tags").value, importance: val("imp") }, campaign);
-    $("a-prio").textContent = prio ? `Priority for this campaign: ${prio}` : "With these tags the place gets no priority and stays hidden.";
+    const n = stars({ type: $("a-type").value, importance: val("imp") }, weights);
+    $("a-prio").textContent = `${event ? `For ${event} events` : "Importance"}: ${starText(n)}`;
   };
-  $("a-tags").oninput = () => { tagsEdited = true; update(); };
-  d.oninput = e => { $("a-error").hidden = true; if (e.target.id !== "a-tags") update(); };
+  d.oninput = () => { $("a-error").hidden = true; update(); };
   update();
 
   d.showModal();
@@ -54,7 +51,7 @@ export async function addPlace({ types, campaign }) {
     if (name) {
       return {
         action: "addPlace", campaign_id: campaign.campaign_id, city: campaign.city, place_name: name,
-        type: $("a-type").value, tags: $("a-tags").value.trim(), importance: +val("imp"), access: val("access"),
+        type: $("a-type").value, tags: $("a-type").value, importance: +val("imp"), access: val("access"),
         posters: Math.max(1, Math.min(10, parseInt($("a-posters").value, 10) || 1)), notes: $("a-notes").value.trim(),
         lat: where.lat, lon: where.lon, location_source: where.source,
       };
