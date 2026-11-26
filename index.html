@@ -57,10 +57,11 @@
     </div>
     <div class="sheet-body" id="sheet-body">
       <button type="button" id="sheet-toggle" class="sheet-toggle" aria-expanded="false" aria-controls="sheet-more">
-        <span class="grip" aria-hidden="true"></span><span id="sheet-toggle-text">Show all stops</span><span id="mini" class="mini"></span>
+        <span class="grip" aria-hidden="true"></span><span id="sheet-toggle-text" class="sr-only">Show all stops</span><span id="mini" class="mini"></span>
       </button>
       <div id="mode-box" class="mode-box"></div>
       <div id="next"></div>
+      <button type="button" id="list-btn" class="list-btn" aria-expanded="false" aria-controls="sheet-more"></button>
       <div id="sheet-more" hidden>
         <div id="stats" class="stats"></div>
         <div id="links" class="btns links"></div>

@@ -137,6 +137,7 @@ function renderAll(kept) {
   ]);
   $("links").innerHTML = "";
   $("list-title").textContent = "All left, nearest first";
+  listButton(`All ${kept.length} stops`);
   const mins = s => Math.round(minutes(away(s), filters.travel));
   $("stops").innerHTML = listVisible() ? open.map(s => rowHtml(s, `${s.stars}★`, mins(s), filters.travel)).join("")
     + doneOnes.map(s => rowHtml(s, "✓", null, filters.travel)).join("") : "";
@@ -222,6 +223,7 @@ function renderRoute(o) {
     + (o.linkLimit < remaining.length ? `<span class="muted">Later parts appear as you tick stops off.</span>` : "");
 
   $("list-title").textContent = o.title;
+  listButton(`All ${o.route.length} stops`);
   // The list (up to ~200 rows) is only built while it's visible: keeps the phone quick.
   $("stops").innerHTML = listVisible() ? o.route.map((s, i) => rowHtml(s, i + 1, eta.get(s) ?? null, o.travel)).join("") : "";
 
@@ -243,6 +245,7 @@ function renderRoute(o) {
 // No trip yet: plain pins, nothing else.
 function clearRoute(kept, pinExtra) {
   $("stats").innerHTML = ""; $("links").innerHTML = ""; $("stops").innerHTML = "";
+  listButton("");
   if (!navigating()) drawRoute(null);
   drawPins(kept.filter(s => !done(s)).map(s => pinOf(s, `${s.stars}★`, pinExtra(s))));
 }
@@ -288,6 +291,7 @@ function renderZones(kept, all) {
     [String(zs.filter(q => q.total > 1).length), "walking loops"], [String(zs.filter(q => q.done === q.total).length), "zones finished"]]);
   $("links").innerHTML = "";
   $("list-title").textContent = "Zones (biggest first)";
+  listButton(`All ${zs.length} zones`);
   $("stops").innerHTML = zs.map(zoneRowHtml).join("");
   drawPins([]); if (!navigating()) drawRoute(null);
   drawZones(zs.map(q => ({ id: q.id, number: q.number, name: q.name, centre: q.centre, mins: q.mins, color: q.color,
@@ -421,10 +425,21 @@ function setSheet(to) {
   $("sheet-body").style.height = "";
   $("sheet-more").hidden = !isOpen(to);
   $("sheet-toggle").setAttribute("aria-expanded", String(isOpen(to)));
-  $("sheet-toggle-text").textContent = isOpen(to) ? "Hide the list" : "Show all stops";
+  $("sheet-toggle-text").textContent = isOpen(to) ? "Hide the list" : "Show the list";
+  paintListButton();
   if (!wasOpen && isOpen(to) && boot) render(); // build the list now that it shows
 }
 const closeSheet = () => setSheet("peek");
+// The row under the card that opens the list: "All 161 stops ▾" / "Hide the list ▴". Empty text: no list, no row.
+let listText = "";
+function listButton(text) { listText = text; paintListButton(); }
+function paintListButton() {
+  const b = $("list-btn"), open = isOpen(snap);
+  b.hidden = !listText;
+  b.textContent = open ? "Hide the list ▴" : `${listText} ▾`;
+  b.setAttribute("aria-expanded", String(open));
+}
+$("list-btn").onclick = () => setSheet(isOpen(snap) ? "peek" : "half");
 // Tap: from the strip back to the card; from the card to the list; from the list back to the card.
 $("sheet-toggle").onclick = () => { if (!dragged) setSheet(snap === "peek" ? "half" : "peek"); dragged = false; };
 
