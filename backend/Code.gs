@@ -59,14 +59,14 @@ function doPost(e) {
 function bootstrap_(campaignId) {
   const campaigns = rows_(TABS.campaigns).filter(c => isTrue_(c.active));
   const campaign = campaigns.find(c => c.campaign_id === campaignId) || campaigns[0] || null;
-  const city = campaign ? campaign.city : null;
+  const city = campaign ? String(campaign.city).trim().toLowerCase() : null; // "Gent " or "gent" still match "Gent"
   return {
     serverTime: new Date().toISOString(),
     campaigns: campaigns,
     campaign_id: campaign ? campaign.campaign_id : null,
     cities: rows_(TABS.cities),
     types: rows_(TABS.types),
-    places: rows_(TABS.places).filter(p => isTrue_(p.active) && (!city || p.city === city)),
+    places: rows_(TABS.places).filter(p => isTrue_(p.active) && (!city || String(p.city).trim().toLowerCase() === city)),
     results: campaign ? resultsFor_(campaign.campaign_id) : [],
   };
 }
@@ -92,6 +92,11 @@ function saveResult_(b, name) {
     if (data[i][col('campaign_id')] === campaignId && data[i][col('place_id')] === placeId && data[i][col('cycle')] === cycle) { rowIdx = i; break; }
   }
   const old = rowIdx > 0 ? Object.fromEntries(head.map((k, j) => [k, data[rowIdx][j]])) : {};
+  // A result tapped while offline arrives late. If a teammate saved this stop after that tap, theirs is
+  // newer: keep it and send it back (the phone then shows it). `at` itself stays the time of saving here,
+  // so the other phones' "results since …" polling still picks up every change.
+  const tapped = Date.parse(b.tapped_at);
+  if (rowIdx > 0 && tapped && Date.parse(old.at) > tapped) return { ok: true, result: old, stale: true };
   const rec = {
     campaign_id: campaignId, place_id: placeId, cycle: cycle,
     status: b.status !== undefined ? b.status : (old.status || ''),
@@ -169,4 +174,5 @@ function clean_(v, max) {
   return s;
 }
 
-function isTrue_(v) { return String(v).toUpperCase() === 'TRUE'; }
+// TRUE, true, yes, 1 or x (with stray spaces): all count as "on"; anything else (empty, FALSE, no) as "off".
+function isTrue_(v) { return ['TRUE', 'YES', '1', 'X'].indexOf(String(v).trim().toUpperCase()) >= 0; }

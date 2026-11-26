@@ -33,11 +33,17 @@ assert.strictEqual(r.result.status, 'posted'); assert.strictEqual(r.result.note[
 r = post({ code: 'secret', name: 'Test', action: 'result', campaign_id: C, place_id: 'T06', cycle: '', status: '' });
 assert.strictEqual(r.result.status, '');                                                            // undo
 assert.strictEqual(tabs.Results.filter(x => x[1] === 'T06').length, 1);                             // upsert, not duplicate
+// A result tapped offline before a teammate's newer one arrives late: the teammate's result stays.
+const beforeEve = new Date(Date.now() - 5000).toISOString();
+post({ code: 'secret', name: 'Eve', action: 'result', campaign_id: C, place_id: 'T06', cycle: '', status: 'posted', posters: 1 });
+r = post({ code: 'secret', name: 'Dana', action: 'result', campaign_id: C, place_id: 'T06', cycle: '', status: 'later', tapped_at: beforeEve });
+assert.ok(r.stale); assert.strictEqual(r.result.status, 'posted'); assert.strictEqual(r.result.by, 'Eve');
+r = post({ code: 'secret', name: 'Dana', action: 'result', campaign_id: C, place_id: 'T06', cycle: '', status: '', tapped_at: new Date(Date.now() + 1000).toISOString() });
+assert.ok(!r.stale); assert.strictEqual(r.result.status, '');                                       // a newer tap still wins
 assert.strictEqual(post({ code: 'secret', name: 'Test', action: 'result', campaign_id: C, place_id: 'NOPE', cycle: '', status: 'posted' }).error, 'unknown place');
 assert.strictEqual(post({ code: 'secret', name: 'Test', action: 'result', campaign_id: C, place_id: 'B19', cycle: '2026-12-04', status: 'weird' }).error, 'bad status');
 r = post({ code: 'secret', name: 'Test', action: 'addPlace', campaign_id: C, city: 'Gent', place_name: 'Café X', type: 'stages', tags: 'culture', lat: 51.05, lon: 3.72, location_source: 'gps' });
 assert.ok(r.ok, JSON.stringify(r)); assert.ok(r.place.place_id.startsWith('X-'));
 assert.strictEqual(get({ action: 'bootstrap', code: 'secret' }).places.length, 199);
 assert.ok(get({ action: 'results', code: 'secret', campaign: C, since: new Date(Date.now() - 60000).toISOString() }).results.some(x => x.place_id === 'T06'));
-//, code: 'secret', campaign: C, since: new Date(Date.now() - 60000).toISOString() }).results.length >= 1, true);
 console.log('backend mock tests passed; log rows:', tabs.Log.length - 1);

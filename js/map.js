@@ -38,8 +38,10 @@ export function drawPins(pins) {
   lastPins = sig;
   placesLayer.clearLayers();
   for (const p of pins) {
-    L.marker([p.lat, p.lon], { icon: pinIcon(p.color, p.label, p.cls), title: p.title, zIndexOffset: p.z || 0 })
-      .bindPopup(p.popup, { minWidth: 220 }).addTo(placesLayer);
+    // keyboard: false keeps 200 pins out of the Tab order; the list has every stop with the same buttons.
+    // The autopan padding keeps an opened popup clear of the top bar and the zoom buttons.
+    L.marker([p.lat, p.lon], { icon: pinIcon(p.color, p.label, p.cls), title: p.title, zIndexOffset: p.z || 0, keyboard: false })
+      .bindPopup(p.popup, { minWidth: 220, autoPanPaddingTopLeft: [12, 70], autoPanPaddingBottomRight: [60, 12] }).addTo(placesLayer);
   }
 }
 
@@ -52,15 +54,24 @@ export function setHome(home) {
 }
 
 // Wait for one tap on the map; resolves {lat, lon} rounded to ~10 cm.
+// Wait for one tap on the map: resolves {lat, lon}, or null when cancelled (cancelPick, or a new pick).
+let endPick = null;
 export function pickPoint() {
+  cancelPick(); // only one pick at a time: a second "Tap on the map" replaces the first
   return new Promise(resolve => {
-    map.getContainer().classList.add("picking");
-    map.once("click", e => {
+    const done = value => {
+      map.off("click", onTap);
       map.getContainer().classList.remove("picking");
-      resolve({ lat: +e.latlng.lat.toFixed(6), lon: +e.latlng.lng.toFixed(6) });
-    });
+      endPick = null;
+      resolve(value);
+    };
+    const onTap = e => done({ lat: +e.latlng.lat.toFixed(6), lon: +e.latlng.lng.toFixed(6) });
+    map.getContainer().classList.add("picking");
+    map.on("click", onTap);
+    endPick = () => done(null);
   });
 }
+export const cancelPick = () => endPick?.();
 
 // ---------- Me: blue dot, accuracy circle, follow-me ----------
 
@@ -136,7 +147,7 @@ export function fitTo(points) {
   if (!points.length) return;
   const sheet = document.getElementById("sheet").getBoundingClientRect(), side = sheet.width < window.innerWidth;
   map.fitBounds(L.latLngBounds(points.map(p => [+p.lat, +p.lon])), {
-    paddingTopLeft: [side ? sheet.width + 30 : 30, 80], paddingBottomRight: [60, side ? 30 : Math.min(sheet.height, window.innerHeight * .45) + 20], maxZoom: 16 });
+    paddingTopLeft: [side ? sheet.width + 30 : 30, 80], paddingBottomRight: [60, side ? 30 : Math.min(sheet.height, window.innerHeight * .6) + 10], maxZoom: 16 });
 }
 
 // Zones overview: each zone's stops as soft dark patches, and a numbered square badge in the middle.

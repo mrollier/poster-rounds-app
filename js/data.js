@@ -24,13 +24,15 @@ const FRIENDLY = {
 async function call(url, options) {
   let res;
   try {
-    res = await fetch(url, { cache: "no-store", ...options });
+    // A request that hangs (weak mobile data) would block every later sync: give up after 20 s and retry.
+    res = await fetch(url, { cache: "no-store", signal: AbortSignal.timeout?.(20000), ...options });
   } catch {
     throw new BackendError("Can't reach the server. Check your mobile data or Wi-Fi and try again.", { offline: true });
   }
   const body = await res.json().catch(() => null);
   if (!body) throw new BackendError("The server sent an unexpected answer. Try again in a minute.", { offline: true });
   if (body.ok === false) {
+    if (body.error === "unknown place") throw new BackendError("This place is no longer in the list: the organiser removed it from the sheet.");
     // Our own mistakes in a request (bad/unknown …, … missing) will never succeed; anything else (a busy
     // sheet, a Google hiccup) may work next time, so it counts as "try again later".
     const permanent = /^(bad|unknown|request too large)|missing$/.test(body.error);

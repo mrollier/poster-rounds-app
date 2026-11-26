@@ -1,10 +1,10 @@
 // Entry point: holds the app's state, wires the buttons, and keeps results in sync with the team.
 import { store, bootstrap, fetchResults, postWrite, BackendError } from "./data.js";
-import { initMap, showCity, drawPins, closePopup, setHome, setMe, setFollow, onUserPan, pickPoint, drawRoute, fitTo,
+import { initMap, showCity, drawPins, closePopup, setHome, setMe, setFollow, onUserPan, pickPoint, cancelPick, drawRoute, fitTo,
   drawZones, zoneLabelsFromZoom, esc } from "./map.js";
 import { watchWhileVisible, restartWatching, lastPosition } from "./location.js";
 import { setup, toast, ask, $ } from "./ui.js";
-import { stars, eventTypes, eventWeights, cycleStart, brusselsToday, cycleFor, resultKey, STATUS_LABEL, chunkLinks } from "./logic.js";
+import { stars, eventTypes, eventWeights, cleanBoot, num, cycleStart, brusselsToday, cycleFor, resultKey, STATUS_LABEL, chunkLinks } from "./logic.js";
 import { mergeResults, withPending, createQueue } from "./sync.js";
 import { dist, minutes } from "./geo.js";
 import { tripTime } from "./routes.js";
@@ -27,14 +27,17 @@ const saveResults = () => store.set("results", synced);
 // ---------- Derived data ----------
 
 const campaign = () => boot?.campaigns.find(c => c.campaign_id === boot.campaign_id) || null;
-const city = () => boot.cities.find(c => c.city === campaign()?.city);
+const same = (a, b) => String(a ?? "").trim().toLowerCase() === String(b ?? "").trim().toLowerCase();
+const city = () => boot.cities.find(c => same(c.city, campaign()?.city));
 // The current board-cleaning cycle (a date), worked out fresh each time: the app may stay open past midnight.
 const boardCycle = () => cycleStart(city()?.board_cleaning, brusselsToday());
 const keyOf = place => resultKey({ campaign_id: boot.campaign_id, place_id: place.place_id, cycle: cycleFor(place, boardCycle()) });
 
 // The kind of event we plan for: picked in Filters, else the campaign's own, else the first the sheet knows.
 const events = () => eventTypes(boot.types);
-const currentEvent = () => [filters.event, campaign()?.event_type, events()[0]].find(e => e && events().includes(e)) || "";
+// Matched without caring about case or spaces: "poetry " in the sheet still means "Poetry".
+const evMatch = e => events().find(x => x.trim().toLowerCase() === String(e ?? "").trim().toLowerCase());
+const currentEvent = () => [filters.event, campaign()?.event_type, events()[0]].map(evMatch).find(Boolean) || "";
 
 // All stops of this campaign with their stars, type and latest result (ours not yet sent included).
 function stops() {
@@ -49,8 +52,9 @@ const findStop = id => stops().find(s => s.place.place_id === id);
 
 // Where "nearest" is measured from: my live position, else home, else the city centre.
 function origin() {
-  const c = city();
-  return lastPosition() || settings.home || (c && { lat: +c.centre_lat, lon: +c.centre_lon });
+  const c = city(), centre = c && { lat: num(c.centre_lat), lon: num(c.centre_lon) };
+  const p0 = boot.places[0];
+  return lastPosition() || settings.home || (centre?.lat && centre?.lon ? centre : p0 && { lat: p0.lat, lon: p0.lon }) || { lat: 51.05, lon: 3.72 };
 }
 
 // ---------- View state (saved on this phone) ----------
@@ -93,6 +97,11 @@ function render() {
   }
   $("campaign-name").textContent = `Campaign: ${c.name}`;
   $("sheet").classList.remove("booting");
+  if (!boot.places.length) { // e.g. the campaign says "Ghent" and the places say "Gent"
+    $("next").innerHTML = `<p>No places in the sheet for the city "${esc(c.city)}". The organiser can check that the
+      campaign's city is spelled the same as in the Places tab.</p>`;
+    return;
+  }
   $("modes").querySelector(`input[value="${view.mode}"]`).checked = true;
   setHome(settings.home);
   renderSync();
@@ -117,7 +126,8 @@ function renderAll(kept) {
 
   $("mode-box").innerHTML = `<div class="mode-line"><span><b>${open.length}</b> to do · nearest to ${homeLabel()}</span></div>`;
   $("next").innerHTML = nextCardHtml(next, `Nearest stop · ${open.length} left`, { travel: filters.travel,
-    finished: home ? { text: "All stops done. On to home!", label: "Navigate home", dest: finishedDest }
+    finished: !kept.length ? { text: "No stops match these filters. Change them with the filter button (top right)." }
+      : home ? { text: "All stops done. On to home!", label: "Navigate home", dest: finishedDest }
       : { text: "All stops done with these filters. Well done!" } });
   if (!navigating()) $("mini").textContent = next ? `${distText(away(next))} · ${next.place.name}` : "All stops done";
 
@@ -310,7 +320,10 @@ function openZone(id) { view.zone = id; saveView(); closeSheet(); render(); } //
 
 // ---------- Mode, filters and route controls ----------
 
-$("modes").addEventListener("change", e => { view.mode = e.target.value; saveView(); render(); });
+$("modes").addEventListener("change", e => {
+  cancelPick(); toast(""); // a "Tap the map" for the old mode no longer applies
+  view.mode = e.target.value; saveView(); render();
+});
 
 function setWay(patch) {
   way = computeWayIds(stops().filter(passes), { ...way, ...patch }, filters.travel);
@@ -337,7 +350,7 @@ function renderFilters() {
   const shown = boot.types.filter(t => counts[t.type]), off = shown.filter(t => skip().has(t.type)).length;
   $("types-sum").textContent = `Types of place: ${shown.length - off} of ${shown.length} included`;
 }
-$("filter-btn").onclick = () => { renderFilters(); $("filters").showModal(); };
+$("filter-btn").onclick = () => { if (!boot) return; renderFilters(); $("filters").showModal(); };
 $("f-travel").addEventListener("change", e => { filters.travel = e.target.value; filtersChanged(); });
 $("f-min").addEventListener("change", e => { filters.min = e.target.value; filtersChanged(); });
 $("f-event").addEventListener("change", e => { filters.event = e.target.value; filtersChanged(); });
@@ -359,8 +372,9 @@ async function wayEnd(end, how) {
     return setWay({ [end]: { lat: p.lat, lon: p.lon, label: "My position" } });
   }
   closeSheet();
-  toast(end === "from" ? "Tap the map where you start." : "Tap the map where you're going.", 0);
+  toast(end === "from" ? "Tap the map where you start." : "Tap the map where you're going.", 0, { label: "Cancel", run: cancelPick });
   const p = await pickPoint();
+  if (!p) return; // cancelled (or another pick took over: leave its message up)
   toast("");
   setWay({ [end]: { ...p, label: "Point on the map" } });
 }
@@ -458,6 +472,8 @@ const queue = createQueue({
       toast(`"${reply.place.name}" is added. The others see it next time their app refreshes.`);
     } else {
       mergeResults(synced.map, [reply.result]); saveResults();
+      // Tapped while offline, but a teammate saved this stop later: the server kept theirs.
+      if (reply.stale) toast(`${reply.result.by} updated ${findStop(reply.result.place_id)?.place.name || "a stop"} after you: their result is kept.`, 8000);
     }
     render();
   },
@@ -476,10 +492,18 @@ async function flush() {
   renderSync();
 }
 
+// After a result the card shows the next stop, with its buttons in the same place: a double tap would
+// tick that one off too. So result buttons ignore taps for a moment, and a message says what was saved.
+let quietUntil = 0;
 function write(place, patch) {
   if (navTarget()?.id === place.place_id) endNav(); // a result for the place I navigated to: navigation done
   queue.add({ action: "result", campaign_id: boot.campaign_id, place_id: place.place_id,
-              cycle: cycleFor(place, boardCycle()), ...patch });
+              cycle: cycleFor(place, boardCycle()), ...patch, tapped_at: new Date().toISOString() });
+  if (patch.status) {
+    quietUntil = Date.now() + 800;
+    const what = patch.status === "posted" ? `Posted ${patch.posters}` : STATUS_LABEL[patch.status];
+    toast(`${what}: ${place.name}`, 6000, { label: "Undo", run: () => write(place, { status: "", posters: 0 }) });
+  }
   render();
   flush();
 }
@@ -490,15 +514,17 @@ async function markPosted(s) {
   if (planned > 1) {
     const typed = await ask(`${s.place.name}: how many posters did you hang?`, { value: planned });
     if (typed === null) return;
-    n = Math.max(0, parseInt(typed, 10) || 0);
+    n = parseInt(typed, 10);
+    n = Number.isNaN(n) ? planned : Math.max(0, n); // an empty box means "as planned", not 0
   }
   write(s.place, { status: "posted", posters: n });
 }
 
 async function markOther(s, status) { // not possible, refused, full, closed, come back later
   const msg = status === "nope" ? `${s.place.name}: not possible. Reason (optional):` : `${STATUS_LABEL[status]}. Note (optional):`;
-  const note = await ask(msg, { value: s.res?.note || "", ok: "Save", cancel: "Skip" });
-  write(s.place, { status, posters: 0, ...(note !== null ? { note: note.trim() } : {}) });
+  const note = await ask(msg, { value: s.res?.note || "", ok: "Save", cancel: "Cancel" });
+  if (note === null) return; // Cancel or Escape: nothing saved (the reason is optional, Save with an empty box)
+  write(s.place, { status, posters: 0, note: note.trim() });
 }
 
 async function editNote(s) {
@@ -512,8 +538,9 @@ async function onAction(e) {
   if (!el || el.tagName === "SELECT") return;
   const s = findStop(el.dataset.id);
   if (!s) return;
-  closePopup();
   const act = el.dataset.act;
+  if ((act === "posted" || act === "nope") && Date.now() < quietUntil) return; // a double tap (see write)
+  closePopup();
   if (act === "posted") await markPosted(s);
   if (act === "nope") await markOther(s, "nope");
   if (act === "undo") write(s.place, { status: "", posters: 0 });
@@ -531,11 +558,19 @@ $("stops").addEventListener("change", async e => {
   else write(s.place, { status: "", posters: 0 });
   render(); // also resets the menu if the dialog was cancelled
 });
-$("sync-btn").onclick = flush;
+$("sync-btn").onclick = async () => {
+  await flush();
+  if (queue.items.length) toast(navigator.onLine ? "The server isn't answering yet. The app keeps trying."
+    : "No connection. The app sends your changes as soon as you're back online.");
+};
 
+let adding = false; // one "Add place" at a time: a double tap would otherwise add the place twice
 $("add-btn").onclick = async () => {
+  if (adding || !boot) return;
+  if (!campaign()) return toast("No active campaign: the organiser can set one to active in the sheet.");
   closePopup(); closeSheet();
-  const body = await addPlace({ types: boot.types, campaign: campaign(), event: currentEvent() });
+  adding = true;
+  const body = await addPlace({ types: boot.types, campaign: campaign(), event: currentEvent() }).finally(() => { adding = false; });
   if (!body) return;
   // ponytail: if the answer is lost after the sheet saved the place, a retry adds it twice; delete the copy in the sheet.
   queue.add(body);
@@ -576,6 +611,9 @@ window.addEventListener("online", flush);
 
 // Take a (fresh or saved) bootstrap answer: reset results when the campaign changed, then merge.
 function useBoot(recentre) {
+  const cleaned = cleanBoot(boot);
+  boot = cleaned.boot;
+  if (cleaned.skipped.length) console.warn("Places left out (fix them in the sheet):\n" + cleaned.skipped.join("\n"));
   if (!synced || synced.campaign_id !== boot.campaign_id) {
     synced = { campaign_id: boot.campaign_id, map: {}, serverTime: boot.serverTime };
   }
@@ -676,10 +714,14 @@ onNavChange(st => {
     : st.arrived ? "" : `${distText(st.metres)} · ${Math.max(1, Math.round(st.mins))} min`;
   $("nav").classList.toggle("arrived", !!st.arrived);
   $("mini").textContent = `${st.arrived ? "Arrived" : $("nav-left").textContent} · ${st.name}`;
-  // Arrived at a stop: tick it off right here.
-  $("nav-acts").innerHTML = st.arrived && st.id && findStop(st.id)
+  // Arrived at a stop: tick it off right here. Built only when that changes, not on every GPS fix:
+  // rebuilding the buttons under a finger would swallow the tap.
+  const acts = st.arrived && st.id && findStop(st.id)
     ? `<button type="button" class="done" data-act="posted" data-id="${esc(st.id)}">Posted ✓</button>
        <button type="button" data-act="nope" data-id="${esc(st.id)}">Can't ✗</button>` : "";
+  if ($("nav-acts").dataset.html !== acts) { $("nav-acts").innerHTML = acts; $("nav-acts").dataset.html = acts; }
+  // The zoom buttons and the sync chip move down below the banner (its height changes on arrival).
+  document.body.style.setProperty("--nav-h", `${$("nav").offsetHeight}px`);
 });
 $("nav").addEventListener("click", onAction);
 $("nav-stop").onclick = endNav;

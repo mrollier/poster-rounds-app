@@ -83,3 +83,9 @@ test("queue: two flushes at once don't send twice", async () => {
   assert.deepEqual([a, b].sort(), ["busy", "done"]);
   assert.deepEqual(s.sent, ["P1"]);
 });
+
+test("mergeResults: a row with an unreadable time (typed by hand) doesn't block later changes", () => {
+  const map = { "c|p|": { campaign_id: "c", place_id: "p", cycle: "", status: "later", at: "26/11/2026 10:00" } };
+  assert.equal(mergeResults(map, [{ campaign_id: "c", place_id: "p", cycle: "", status: "posted", at: "2026-11-26T11:00:00Z" }]), true);
+  assert.equal(map["c|p|"].status, "posted");
+});

@@ -5,9 +5,9 @@ import { esc } from "./map.js";
 import { isDone, FAILED, STATUS_LABEL, gmapsUrl, starText } from "./logic.js";
 
 const statusOf = s => s.res?.status || "";
-const plural = (n, word) => `${n} ${word}${+n === 1 ? "" : "s"}`;
+const plural = (n, word) => `${esc(n)} ${word}${+n === 1 ? "" : "s"}`;
 const accessText = p => (p.access === "ask" ? "ask first" : "hang freely");
-const clock = iso => new Date(iso).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" });
+const clock = iso => (Number.isNaN(Date.parse(iso)) ? "" : new Date(iso).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" }));
 // "★★☆", read out as "Importance 2 of 3".
 const starsHtml = n => `<span class="stars" role="img" aria-label="Importance ${n} of 3">${starText(n)}</span>`;
 const btn = (act, id, label, cls = "") => `<button type="button" class="${cls}" data-act="${act}" data-id="${esc(id)}">${label}</button>`;
@@ -28,7 +28,7 @@ export function pinOf(s, label, extraButtons = "") {
 function resultLine(s) {
   const r = s.res;
   if (!r || (!r.status && !r.note)) return "";
-  const what = r.status === "posted" ? `Posted ${r.posters}` : STATUS_LABEL[r.status] || "No result yet";
+  const what = r.status === "posted" ? `Posted ${esc(r.posters)}` : STATUS_LABEL[r.status] || "No result yet";
   const who = r.pending ? "waiting to sync" : `${esc(r.by)} ${clock(r.at)}`;
   return `<div class="res ${FAILED.includes(r.status) ? "bad" : ""}">${what} · ${who}</div>
     ${r.note ? `<div class="own-note">${esc(r.note)}</div>` : ""}`;
@@ -60,6 +60,7 @@ export function nextCardHtml(s, heading, { travel = "bike", finished = null } = 
     <div class="addr">${starsHtml(s.stars)} · ${esc(p.address)} · ${plural(p.posters, "poster")} ·
       <span class="${p.access === "ask" ? "ask" : ""}">${accessText(p)}</span></div>
     ${p.notes ? `<div class="stop-notes">${esc(p.notes)}</div>` : ""}
+    ${resultLine(s) /* e.g. "Come back later · Thomas 14:05" and its note: why it was put off */}
     <div class="go-row">${btn("nav", p.place_id, "Navigate", "go navgo")}
       ${btn("posted", p.place_id, "Posted ✓", "go posted")}${btn("nope", p.place_id, "Can't ✗", "go nope")}</div>
     <a class="gmaps" href="${gmapsUrl(p, { mode: travel })}" target="_blank" rel="noopener">Google Maps ↗</a>

@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { stars, eventTypes, eventWeights, starText, cycleStart, brusselsToday, isDone, cycleFor, gmapsUrl } from "../js/logic.js";
+import { stars, eventTypes, eventWeights, starText, cycleStart, brusselsToday, isDone, cycleFor, gmapsUrl, cleanBoot } from "../js/logic.js";
 import { readTab } from "./csv.js";
 
 const places = readTab("places");
@@ -89,4 +89,19 @@ test("chunkLinks: 3 waypoints + destination per link, each part starts where the
   assert.equal(second.get("waypoints"), "51,4|51,5|51,6");
   assert.equal(second.get("destination"), "51,7");
   assert.equal(new URL(links[0].url).searchParams.get("origin"), null);
+});
+
+test("cleanBoot: fixes what the sheet gets wrong, leaves out what it can't", () => {
+  const P = (id, lat, lon, extra = {}) => ({ place_id: id, name: id, type: "boards", lat, lon, importance: "2", posters: "1", ...extra });
+  const raw = {
+    types: [{ type: "boards", color: "#000" }, { type: "cafes", color: 'red"><img src=x onerror=alert(1)>' }],
+    places: [P("a", "51.05", "3.72"), P("b", "51,06", " 3,73 ", { type: " Boards" }), P("c", "", ""), P("d", "3.72", "51.05"),
+             P("a", "51.05", "3.72"), P("e", "51.04", "3.71", { importance: "2,6", posters: "<b>" })],
+  };
+  const { boot, skipped } = cleanBoot(raw);
+  assert.deepEqual(boot.places.map(p => p.place_id), ["a", "b", "e"]);
+  assert.deepEqual([boot.places[1].lat, boot.places[1].lon, boot.places[1].type], [51.06, 3.73, "boards"]);
+  assert.deepEqual([boot.places[2].importance, boot.places[2].posters], [3, 1]);
+  assert.equal(boot.types[1].color, "#444");
+  assert.equal(skipped.length, 3); // c (no position), d (swapped: far away), the second a (duplicate)
 });

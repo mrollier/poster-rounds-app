@@ -1,18 +1,30 @@
 // Screens and small widgets: the setup form (first run + Settings) and the toast message.
 import { bootstrap } from "./data.js";
-import { pickPoint, setHome, showCity, esc } from "./map.js";
+import { pickPoint, cancelPick, setHome, showCity, esc } from "./map.js";
 import { currentPosition } from "./location.js";
 import { CONFIG } from "../config.js";
 
 export const $ = id => document.getElementById(id);
 
+// A short message at the top. ms = 0 keeps it until the next toast. `action`: {label, run} adds a button
+// (e.g. "Undo" or "Cancel") that runs `run` and closes the message.
 let toastTimer;
-export function toast(msg, ms = 5000) {
+export function toast(msg, ms = 5000, action = null) {
   const el = $("toast");
   el.textContent = msg; el.hidden = !msg;
+  if (msg && action) {
+    const b = document.createElement("button");
+    b.type = "button"; b.className = "toast-btn"; b.textContent = action.label;
+    b.onclick = () => { el.hidden = true; action.run(); };
+    el.append(b);
+  }
   clearTimeout(toastTimer);
   if (msg && ms) toastTimer = setTimeout(() => { el.hidden = true; }, ms);
 }
+
+// While the setup form is open, the map and buttons behind it can't be reached (also not with Tab).
+const behind = () => [$("map"), document.querySelector(".bar"), $("sheet")];
+const cover = on => behind().forEach(el => { el.inert = on; });
 
 // Show the setup form and resolve {settings, boot} once the code is checked and the user taps Start/Save.
 // settings: {name, code, home: {lat, lon} | null, campaign}. With a saved code it opens as "Settings";
@@ -28,6 +40,7 @@ export function setup(settings, saved = null) {
   go.textContent = editing ? "Save" : "Continue";
   err.hidden = true;
   form.hidden = false;
+  cover(true);
   const showHome = () => {
     $("home-state").textContent = home ? `Home is set (${home.lat.toFixed(4)}, ${home.lon.toFixed(4)}).` : "No home set.";
     setHome(home);
@@ -50,11 +63,11 @@ export function setup(settings, saved = null) {
     showHome();
   };
   $("home-tap").onclick = async () => {
-    form.hidden = true;
-    toast("Tap your home on the map.", 0);
-    home = await pickPoint();
-    toast("");
-    form.hidden = false;
+    form.hidden = true; cover(false);
+    toast("Tap your home on the map.", 0, { label: "Cancel", run: cancelPick });
+    const p = await pickPoint();
+    if (p) { home = p; toast(""); }
+    form.hidden = false; cover(true);
     showHome();
   };
   $("home-clear").onclick = () => { home = null; showHome(); };
@@ -62,7 +75,7 @@ export function setup(settings, saved = null) {
   return new Promise(resolve => {
     // Cancel (Settings only): close without changing anything.
     $("setup-cancel").hidden = !editing;
-    $("setup-cancel").onclick = () => { form.hidden = true; setHome(settings.home); resolve({ settings, boot: saved }); };
+    $("setup-cancel").onclick = () => { form.hidden = true; cover(false); setHome(settings.home); resolve({ settings, boot: saved }); };
     form.onsubmit = async e => {
       e.preventDefault();
       const name = $("f-name").value.trim(), code = $("f-code").value.trim();
@@ -87,7 +100,7 @@ export function setup(settings, saved = null) {
       go.disabled = false;
       showCampaigns();
       if (part2.hidden) { part2.hidden = false; go.textContent = "Start"; return; } // first run: now ask home + campaign
-      form.hidden = true;
+      form.hidden = true; cover(false);
       resolve({ settings: { name, code, home, campaign: boot.campaign_id }, boot });
     };
   });

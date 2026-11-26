@@ -1,4 +1,5 @@
 // Pure business rules: no DOM, no network, no localStorage. Everything here is unit-tested in tests/.
+import { hav } from "./geo.js";
 
 // ---------- Importance stars and event types (spec §2.1) ----------
 
@@ -94,4 +95,34 @@ export function chunkLinks(targets, mode, per = 4) {
       url: gmapsUrl(part[part.length - 1], { origin: i ? targets[i - 1] : null, waypoints: part.slice(0, -1), mode }) });
   }
   return out;
+}
+
+// ---------- Cleaning what comes from the sheet ----------
+
+// The sheet is typed by hand, so expect "51,05" (a Belgian decimal comma), spaces, "Boards" for "boards",
+// a colour like "red\"><img …" and copied rows. cleanBoot fixes what it safely can and leaves out the
+// rest, so one bad row can't break the map for everyone. Returns {boot, skipped: [reasons]}.
+export const num = v => Number(String(v ?? "").trim().replace(",", "."));
+const COLOUR = /^(#[0-9a-f]{3,8}|[a-z]{3,20})$/i;
+const median = xs => [...xs].sort((a, b) => a - b)[Math.floor(xs.length / 2)];
+
+export function cleanBoot(boot) {
+  const skipped = [];
+  const types = boot.types.map(t => ({ ...t, type: String(t.type).trim(), color: COLOUR.test(String(t.color).trim()) ? String(t.color).trim() : "#444" }));
+  const typeKey = Object.fromEntries(types.map(t => [t.type.toLowerCase(), t.type]));
+  let places = boot.places.map(p => ({ ...p, lat: num(p.lat), lon: num(p.lon),
+    type: typeKey[String(p.type).trim().toLowerCase()] || String(p.type).trim(),
+    importance: Math.round(num(p.importance)) || 0, posters: Math.max(1, parseInt(p.posters, 10) || 1) }));
+  // A position that isn't a number, is 0,0, or lies far (50 km) from where most places are: left out.
+  const ok = p => Number.isFinite(p.lat) && Number.isFinite(p.lon) && (p.lat || p.lon);
+  const mid = { lat: median(places.filter(ok).map(p => p.lat)), lon: median(places.filter(ok).map(p => p.lon)) };
+  const seen = new Set();
+  places = places.filter(p => {
+    const why = !ok(p) ? "no valid lat/lon" : hav(p, mid) > 50000 ? "lat/lon far from the other places"
+      : seen.has(p.place_id) ? "duplicate place_id" : "";
+    seen.add(p.place_id);
+    if (why) skipped.push(`${p.place_id} ${p.name}: ${why}`);
+    return !why;
+  });
+  return { boot: { ...boot, types, places }, skipped };
 }

@@ -7,8 +7,9 @@ import { resultKey } from "./logic.js";
 export function mergeResults(map, rows) {
   let changed = false;
   for (const row of rows) {
-    const key = resultKey(row), old = map[key];
-    if (!old || Date.parse(row.at) >= Date.parse(old.at)) {
+    const key = resultKey(row), old = map[key], was = Date.parse(old?.at);
+    // A row whose time can't be read (typed by hand in the sheet) must not block every later change.
+    if (!old || Number.isNaN(was) || Date.parse(row.at) >= was) {
       if (!old || JSON.stringify(old) !== JSON.stringify(row)) changed = true;
       map[key] = row;
     }
