@@ -347,3 +347,33 @@ body:has(#nav:not([hidden])) .zone-chip { top: calc(var(--bar-bottom) + var(--na
 body:has(#zone-chip:not([hidden])) .sync-btn { top: calc(var(--bar-bottom) + 60px); }
 /* The Google Maps icon in a stop's pop-up (turn-by-turn, if you want it). */
 .pop-gmaps { display: inline-grid; place-items: center; width: 44px; height: 44px; margin-left: auto; color: var(--brand) !important; }
+
+/* ---------- Train the stars ---------- */
+.dlg-btns.col { flex-direction: column; }
+.train { width: 100%; max-width: 640px; height: 100dvh; max-height: 100dvh; margin: 0 auto; padding: calc(12px + env(safe-area-inset-top)) 12px 16px;
+         border: 0; border-radius: 0; }
+.train-head { display: flex; align-items: center; justify-content: space-between; }
+.train-head h2 { margin: 0; font-size: 1.2rem; }
+.train-mins .btn { flex: 1 1 40%; }
+.train-progress { height: 10px; border-radius: 5px; background: #e6e6e6; overflow: hidden; margin-top: 8px; }
+#train-bar { height: 100%; width: 0; background: var(--brand); transition: width .2s; }
+.train-pair { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 8px; touch-action: pan-y; user-select: none; }
+.tcard { position: relative; display: flex; flex-direction: column; gap: 4px; padding: 10px 8px; border: 2px solid var(--ink);
+         border-radius: 10px; background: var(--paper); cursor: pointer; min-width: 0; }
+.tcard:active { background: var(--accent); }
+.ticon { font-size: 2rem; line-height: 1; display: flex; align-items: center; gap: 6px; }
+.tname { font-weight: 800; line-height: 1.2; }
+.tmeta, .twhere { font-size: .85rem; color: var(--grey); }
+.twhere { color: var(--ink); font-weight: 700; }
+.tmap { position: relative; height: 96px; border-radius: 6px; background-color: #ddd; background-repeat: no-repeat; }
+.tpin { position: absolute; left: 50%; top: 50%; width: 14px; height: 14px; margin: -7px 0 0 -7px; border-radius: 50%;
+        background: var(--warn); box-shadow: 0 0 0 3px #fff; }
+.tq { position: absolute; top: 4px; right: 4px; width: 44px; height: 44px; border: 2px solid var(--ink); border-radius: 50%;
+      background: var(--paper); font-weight: 800; font-size: 1.1rem; cursor: pointer; }
+.train-acts { margin-top: 10px; }
+.train-acts .btn { flex: 1; }
+/* Admin: set a place's stars from its pop-up. */
+.ovr { margin-top: 8px; font-size: .9rem; font-weight: 700; }
+.ovr .popbtn { min-width: 44px; justify-content: center; padding: 0 8px; }
+.ovr .popbtn.on { background: var(--brand); color: #fff !important; border-color: var(--brand); }
+.train-q { margin: 6px 0 0; font-weight: 800; }

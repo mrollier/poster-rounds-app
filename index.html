@@ -157,6 +157,50 @@
     </form>
   </dialog>
 
+  <!-- ☰ for admins: Settings, or train the stars. (Volunteers go straight to Settings.) -->
+  <dialog id="menu-dlg" class="dlg">
+    <form method="dialog">
+      <div class="dlg-btns col">
+        <button value="train" class="btn primary">Train the stars</button>
+        <button value="settings" class="btn">Settings</button>
+        <button value="cancel" class="btn" formnovalidate>Close</button>
+      </div>
+    </form>
+  </dialog>
+
+  <!-- Train the stars (admins): which of two places is better for promoting this event? -->
+  <dialog id="train" class="train" aria-labelledby="train-title">
+    <div class="train-head">
+      <h2 id="train-title">Train the stars</h2>
+      <button type="button" id="train-close" class="icon-btn" aria-label="Close">✕</button>
+    </div>
+    <div id="train-budget">
+      <p>You'll see two places side by side. Swipe towards the one where a poster for <b id="train-event"></b>
+        brings more of the right people (or tap it). Not sure? "About the same". Don't know a place? Its "?".</p>
+      <p class="hint" id="train-left-total"></p>
+      <p><b>How much time do you have?</b></p>
+      <div class="btns train-mins">
+        <button type="button" class="btn" data-min="5">5 min</button><button type="button" class="btn" data-min="10">10 min</button>
+        <button type="button" class="btn" data-min="15">15 min</button><button type="button" class="btn" data-min="25">25 min</button>
+      </div>
+    </div>
+    <div id="train-swipe" hidden>
+      <div class="train-progress" aria-hidden="true"><div id="train-bar"></div></div>
+      <p class="hint" id="train-count" aria-live="polite"></p>
+      <p class="train-q">Which is better for a poster for <b id="train-event2"></b>?</p>
+      <div id="train-pair" class="train-pair"></div>
+      <div class="btns train-acts">
+        <button type="button" id="train-undo" class="btn">Undo</button>
+        <button type="button" id="train-same" class="btn">About the same</button>
+      </div>
+    </div>
+    <div id="train-done" hidden>
+      <p id="train-summary"></p>
+      <div class="btns"><button type="button" id="train-more" class="btn">10 more minutes</button>
+        <button type="button" id="train-close2" class="btn primary">Done</button></div>
+    </div>
+  </dialog>
+
   <!-- One dialog for every question (how many posters, a note, a reason). -->
   <dialog id="dlg" class="dlg">
     <form method="dialog">

@@ -34,6 +34,10 @@ function resultLine(s) {
     ${r.note ? `<div class="own-note">${esc(r.note)}</div>` : ""}`;
 }
 
+// Something extra under every pop-up's buttons (the admin's star override row); set by app.js.
+let popupExtra = () => "";
+export const setPopupExtra = fn => { popupExtra = fn; };
+
 function popupHtml(s, extraButtons) {
   const p = s.place, st = statusOf(s);
   return `<div class="pop"><b>${esc(p.name)}</b><br>${esc(p.address)}<br>
@@ -42,7 +46,7 @@ function popupHtml(s, extraButtons) {
     <div class="pop-btns">${isDone(st)
       ? btn("undo", p.place_id, "Undo ↺", "popbtn alt")
       : btn("posted", p.place_id, "Posted ✓", "popbtn") + btn("nope", p.place_id, "Can't ✗", "popbtn alt")}
-      ${btn("nav", p.place_id, "Navigate", "popbtn alt")}${extraButtons}
+      ${btn("nav", p.place_id, "Navigate", "popbtn alt")}${extraButtons}${popupExtra(s)}
       <a class="pop-gmaps" href="${gmapsUrl(p)}" target="_blank" rel="noopener" aria-label="Open in Google Maps" title="Google Maps">
         <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><path d="M12 2a7 7 0 0 0-7 7c0 5 7 13 7 13s7-8 7-13a7 7 0 0 0-7-7zm0 9.5A2.5 2.5 0 1 1 12 6.5a2.5 2.5 0 0 1 0 5z" fill="currentColor"/></svg></a></div></div>`;
 }

@@ -7,11 +7,13 @@ import { setup, toast, ask, $ } from "./ui.js";
 import { placeStars, eventTypes, eventWeights, cleanBoot, num, cycleStart, brusselsToday, cycleFor, resultKey, STATUS_LABEL, chunkLinks } from "./logic.js";
 import { mergeResults, withPending, createQueue } from "./sync.js";
 import { dist, minutes } from "./geo.js";
-import { tripTime, orderStops, parkAt, ZONE_MINUTES } from "./routes.js";
+import { tripTime, orderStops, parkAt, sectorOf, ZONE_MINUTES } from "./routes.js";
+import { openTrain } from "./train.js";
+import { hav } from "./geo.js";
 import { computeWayIds, planWay, zonesNow, zoneState, byId, done } from "./modes.js";
 import { addPlace } from "./addplace.js";
 import { startNav, stopNav, navUpdate, navigating, navTarget, onNavChange } from "./nav.js";
-import { pinOf, nextCardHtml, rowHtml, statsHtml, seg, linksHtml, zoneRowHtml, typesHtml } from "./views.js";
+import { pinOf, nextCardHtml, rowHtml, statsHtml, seg, linksHtml, zoneRowHtml, typesHtml, setPopupExtra } from "./views.js";
 
 initMap($("map"));
 zoneLabelsFromZoom(15);
@@ -520,6 +522,12 @@ const queue = createQueue({
     if (item.body.action === "addPlace") { // the new place, with its id from the sheet: show it right away
       boot.places.push(reply.place); save();
       toast(`"${reply.place.name}" is added. The others see it next time their app refreshes.`);
+    } else if (item.body.action === "override") { // keep it once it has left the outbox
+      boot.overrides = { ...(boot.overrides || {}), [item.body.place_id]: item.body.stars };
+      if (item.body.stars === "") delete boot.overrides[item.body.place_id];
+      save();
+    } else if (item.body.action === "swipe") {
+      return; // nothing to show: the swipe is in the sheet
     } else {
       mergeResults(synced.map, [reply.result]); saveResults();
       // Tapped while offline, but a teammate saved this stop later: the server kept theirs.
@@ -597,7 +605,21 @@ async function onAction(e) {
   if (act === "note") await editNote(s);
   if (act === "nav") beginNav({ lat: +s.place.lat, lon: +s.place.lon, name: s.place.name, id: s.place.place_id }, routeTravel);
   if (act === "from" || act === "to") setWay({ [act]: { lat: +s.place.lat, lon: +s.place.lon, label: s.place.name } });
+  if (act === "ovr") { // admin: set this place's stars for the campaign
+    queue.add({ action: "override", campaign_id: boot.campaign_id, place_id: s.place.place_id, stars: +el.dataset.stars });
+    toast(`${s.place.name}: ${el.dataset.stars}★ for this campaign.`, 4000);
+    render(); flush();
+  }
 }
+
+// Admins: under every pop-up, "Stars for AI Safety: 0 1 2 3" to fix a place directly (wins over everything).
+setPopupExtra(s => {
+  if (settings?.role !== "admin") return "";
+  const cur = overrides()[s.place.place_id];
+  return `<div class="ovr">Stars for ${esc(currentEvent() || "this event")}:<div class="pop-btns">${[0, 1, 2, 3].map(n =>
+    `<button type="button" class="popbtn alt${cur === n ? " on" : ""}" data-act="ovr" data-stars="${n}" data-id="${esc(s.place.place_id)}"
+      aria-label="${n} stars">${n}</button>`).join("")}</div></div>`;
+});
 $("sheet").addEventListener("click", onAction);
 $("map").addEventListener("click", onAction);
 $("stops").addEventListener("change", async e => {
@@ -792,7 +814,33 @@ $("nav-stop").onclick = endNav;
 
 // ---------- Start ----------
 
-$("menu-btn").onclick = openSettings;
+// ☰: volunteers go straight to Settings; admins choose between Settings and "Train the stars".
+$("menu-btn").onclick = () => {
+  if (settings?.role !== "admin") return openSettings();
+  const d = $("menu-dlg");
+  d.returnValue = "";
+  d.showModal();
+  d.addEventListener("close", () => { if (d.returnValue === "train") startTrain(); if (d.returnValue === "settings") openSettings(); }, { once: true });
+};
+
+// A location line for a swipe card, so look-alike places (city boards) can be told apart:
+// "Overpoort · 80 m from Campus Ufo" (the sector, and the nearest place that isn't a city board).
+function describe(p) {
+  const sector = sectors ? sectors[sectorOf(p, sectors)].name : "";
+  let best = null;
+  for (const q of boot.places) {
+    if (q.place_id === p.place_id || q.type === "boards") continue;
+    const m = hav(p, q);
+    if (m <= 300 && (!best || m < best.m)) best = { m, name: q.name };
+  }
+  const near = best && (best.m < 25 ? `next to ${best.name}` : `${Math.round(best.m / 10) * 10} m from ${best.name}`);
+  return [sector, near].filter(Boolean).join(" · ");
+}
+async function startTrain() {
+  if (geoCity !== campaign().city) await loadCityFiles(campaign().city); // the sectors, for the location lines
+  openTrain({ campaignId: boot.campaign_id, event: currentEvent(), name: settings.name, places: boot.places, types: boot.types,
+    swipes: boot.swipes, describe, send: body => { queue.add({ ...body, campaign_id: boot.campaign_id }); flush(); } });
+}
 
 if (settings?.code && boot) { useBoot(true); refresh(true); startLocation(); }
 else openSettings().then(startLocation);
