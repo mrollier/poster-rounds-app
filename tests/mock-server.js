@@ -1,7 +1,7 @@
 // Local dev server: serves the app and a fake backend at /exec that runs the real backend/Code.gs
 // against an in-memory copy of the seed CSVs. Nothing is saved: restart = fresh seed data.
 //
-//   node tests/mock-server.js        → http://localhost:8787   (team code: secret)
+//   node tests/mock-server.js        → http://localhost:8787   (codes: secret = volunteer, admin-secret = admin)
 //
 // config.js points the app at /exec when it runs on a port from 8787 to 8799 (PORT=8791 node tests/mock-server.js).
 import http from "node:http";
@@ -29,7 +29,6 @@ const sheet = name => tabs[name] && {
 let reply = null;
 const ctx = {
   SpreadsheetApp: { getActiveSpreadsheet: () => ({ getSheetByName: sheet }) },
-  PropertiesService: { getScriptProperties: () => ({ getProperty: () => "secret" }) },
   LockService: { getScriptLock: () => ({ waitLock() {}, releaseLock() {} }) },
   ContentService: { createTextOutput: s => ({ setMimeType() { reply = s; } }), MimeType: { JSON: "json" } },
   Utilities: { formatDate: d => d.toISOString().slice(0, 16).replace(/[-:]/g, "").replace("T", "-") },
@@ -63,4 +62,4 @@ http.createServer((req, res) => {
   }
   res.writeHead(200, { "Content-Type": TYPES[path.extname(target)] || "application/octet-stream" });
   fs.createReadStream(target).pipe(res);
-}).listen(PORT, () => console.log(`Mock backend + app on http://localhost:${PORT} (team code: secret)`));
+}).listen(PORT, () => console.log(`Mock backend + app on http://localhost:${PORT} (codes: secret, admin-secret)`));

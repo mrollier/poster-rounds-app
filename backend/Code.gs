@@ -2,16 +2,17 @@
  * Poster map backend (Google Apps Script, bound to the sheet "Poster map data (EA Ghent)").
  *
  * What it does, in plain terms:
- *   - GET  ?action=bootstrap&code=...            -> everything the app needs for the active campaign(s):
- *                                                  cities, types, campaigns, places, results.
- *   - GET  ?action=results&code=...&campaign=...&since=ISO -> only results changed after `since` (cheap polling).
+ *   - GET  ?action=bootstrap&code=...            -> everything the app needs for the code's campaign:
+ *                                                  the campaign, your role, known names, cities, types,
+ *                                                  places, results.
+ *   - GET  ?action=results&code=...&since=ISO    -> only results changed after `since` (cheap polling).
  *   - POST {code, name, action:"result", ...}     -> save one result (posted / not possible / undo / note).
  *   - POST {code, name, action:"addPlace", ...}   -> add a new poster place found on the street.
  *   Every write is also appended to the Log tab (who, what, when).
  *
- * Security: every call needs the team code (Script properties > TEAM_CODE). The web-app URL ends up
- * in the public website, so the code is what keeps strangers from writing. It is a shared password,
- * not real authentication: change it if it leaks.
+ * Codes: each campaign (row in Campaigns) has an admin_code and a volunteer_code. A code says which
+ * campaign you work on and what you may do; every write lands in that campaign. Codes are never sent
+ * back to the app. They are shared passwords, not real accounts: change them in the sheet if one leaks.
  *
  * Deploy: Deploy > New deployment > Web app. Execute as: Me. Who has access: Anyone.
  * The app POSTs with Content-Type text/plain, which avoids a CORS preflight (Apps Script can't answer one).
@@ -27,9 +28,9 @@ function doGet(e) {
   return handle_(() => {
     const p = e.parameter || {};
     if (p.action === 'ping') return { ok: true };
-    checkCode_(p.code);
-    if (p.action === 'bootstrap') return bootstrap_(p.campaign);
-    if (p.action === 'results') return { results: resultsFor_(p.campaign, p.since), serverTime: new Date().toISOString() };
+    const who = auth_(p.code);
+    if (p.action === 'bootstrap') return bootstrap_(who);
+    if (p.action === 'results') return { results: resultsFor_(who.campaign.campaign_id, p.since), serverTime: new Date().toISOString() };
     throw new Error('unknown action');
   });
 }
@@ -39,7 +40,8 @@ function doPost(e) {
     const raw = (e.postData && e.postData.contents) || '';
     if (raw.length > MAX_BODY) throw new Error('request too large');
     const b = JSON.parse(raw);
-    checkCode_(b.code);
+    const who = auth_(b.code);
+    b.campaign_id = who.campaign.campaign_id; // whatever the phone sends, a write lands in the code's campaign
     const name = clean_(b.name, 40);
     if (!name) throw new Error('name missing');
     const lock = LockService.getScriptLock();
@@ -56,19 +58,28 @@ function doPost(e) {
 
 // ---------- reads ----------
 
-function bootstrap_(campaignId) {
-  const campaigns = rows_(TABS.campaigns).filter(c => isTrue_(c.active));
-  const campaign = campaigns.find(c => c.campaign_id === campaignId) || campaigns[0] || null;
-  const city = campaign ? String(campaign.city).trim().toLowerCase() : null; // "Gent " or "gent" still match "Gent"
+function bootstrap_(who) {
+  const campaign = who.campaign;
+  const city = String(campaign.city).trim().toLowerCase(); // "Gent " or "gent" still match "Gent"
   return {
     serverTime: new Date().toISOString(),
-    campaigns: campaigns,
-    campaign_id: campaign ? campaign.campaign_id : null,
+    campaigns: [withoutCodes_(campaign)],
+    campaign_id: campaign.campaign_id,
+    role: who.role,
+    names: names_(),
     cities: rows_(TABS.cities),
     types: rows_(TABS.types),
-    places: rows_(TABS.places).filter(p => isTrue_(p.active) && (!city || String(p.city).trim().toLowerCase() === city)),
-    results: campaign ? resultsFor_(campaign.campaign_id) : [],
+    places: rows_(TABS.places).filter(p => isTrue_(p.active) && String(p.city).trim().toLowerCase() === city),
+    results: resultsFor_(campaign.campaign_id),
   };
+}
+
+/** First names already used in the sheet (results and added places), for the name list on the phone. */
+function names_() {
+  const all = rows_(TABS.results).map(r => r.by).concat(rows_(TABS.places).map(p => p.added_by));
+  const seen = {};
+  all.forEach(n => { n = String(n || '').trim(); if (n && !/^Claude/.test(n)) seen[n] = true; });
+  return Object.keys(seen).sort();
 }
 
 function resultsFor_(campaignId, since) {
@@ -79,8 +90,7 @@ function resultsFor_(campaignId, since) {
 
 /** Upsert one result: the row for (campaign, place, cycle) is replaced; fields left out keep their value. */
 function saveResult_(b, name) {
-  const campaignId = clean_(b.campaign_id, 80), placeId = clean_(b.place_id, 40), cycle = clean_(b.cycle, 10);
-  if (!rows_(TABS.campaigns).some(c => c.campaign_id === campaignId)) throw new Error('unknown campaign');
+  const campaignId = b.campaign_id, placeId = clean_(b.place_id, 40), cycle = clean_(b.cycle, 10);
   if (!rows_(TABS.places).some(p => p.place_id === placeId)) throw new Error('unknown place');
   if (b.status !== undefined && STATUSES.indexOf(b.status) < 0) throw new Error('bad status');
   if (cycle && !/^\d{4}-\d{2}-\d{2}$/.test(cycle)) throw new Error('bad cycle');
@@ -143,10 +153,24 @@ function handle_(fn) {
   return ContentService.createTextOutput(JSON.stringify(out)).setMimeType(ContentService.MimeType.JSON);
 }
 
-function checkCode_(code) {
-  const want = PropertiesService.getScriptProperties().getProperty('TEAM_CODE');
-  if (!want) throw new Error('TEAM_CODE not set on the server');
-  if (String(code || '') !== want) throw new Error('wrong team code');
+/** Which campaign and role a code gives: {campaign, role: 'admin' | 'volunteer'}. Codes are case-sensitive;
+ *  spaces around them (phone keyboards) are ignored. */
+function auth_(code) {
+  code = String(code || '').trim();
+  if (!code) throw new Error('wrong code');
+  for (const c of rows_(TABS.campaigns)) {
+    const role = code === String(c.admin_code).trim() ? 'admin' : code === String(c.volunteer_code).trim() ? 'volunteer' : '';
+    if (!role) continue;
+    if (!isTrue_(c.active)) throw new Error('campaign closed');
+    return { campaign: c, role: role };
+  }
+  throw new Error('wrong code');
+}
+
+function withoutCodes_(c) {
+  const out = Object.assign({}, c);
+  delete out.admin_code; delete out.volunteer_code;
+  return out;
 }
 
 function sheet_(name) {

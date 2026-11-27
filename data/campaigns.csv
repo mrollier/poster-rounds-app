@@ -1,2 +1,2 @@
-campaign_id,name,city,event_date,postering_from,postering_until,posters_total,event_url,active,event_type,w:students-science,w:students-arts,w:students-general,w:entrepreneurs,w:researchers,w:makers,w:culture,w:nightlife,w:general
-2026-12-ai-safety-lecture,Racen naar de afgrond? – AI-safety lecture,Gent,2026-12-09,2026-11-13,2026-12-09,200,https://luma.com/hh3adzuo,TRUE,AI Safety,3,2,2,3,3,3,1,1,2
+campaign_id,name,city,event_date,postering_from,postering_until,posters_total,event_url,active,event_type,w:students-science,w:students-arts,w:students-general,w:entrepreneurs,w:researchers,w:makers,w:culture,w:nightlife,w:general,admin_code,volunteer_code
+2026-12-ai-safety-lecture,Racen naar de afgrond? – AI-safety lecture,Gent,2026-12-09,2026-11-13,2026-12-09,200,https://luma.com/hh3adzuo,TRUE,AI Safety,3,2,2,3,3,3,1,1,2,admin-secret,secret

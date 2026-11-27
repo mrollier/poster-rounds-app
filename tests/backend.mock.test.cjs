@@ -14,7 +14,6 @@ const sheet = name => tabs[name] && {
   appendRow: row => tabs[name].push(row.map(String)),
 };
 const ctx = { SpreadsheetApp: { getActiveSpreadsheet: () => ({ getSheetByName: sheet }) },
-  PropertiesService: { getScriptProperties: () => ({ getProperty: () => 'secret' }) },
   LockService: { getScriptLock: () => ({ waitLock() {}, releaseLock() {} }) },
   ContentService: { createTextOutput: s => ({ setMimeType() { return JSON.parse(s); } }), MimeType: { JSON: 'json' } },
   Utilities: { formatDate: () => '20261125-1500' }, console };
@@ -22,9 +21,19 @@ vm.createContext(ctx); vm.runInContext(fs.readFileSync(path.join(__dirname, '..'
 const get = p => ctx.doGet({ parameter: p }), post = b => ctx.doPost({ postData: { contents: JSON.stringify(b) } });
 const assert = require('assert');
 assert.deepStrictEqual(get({ action: 'ping' }), { ok: true });
-assert.strictEqual(get({ action: 'bootstrap', code: 'wrong' }).error, 'wrong team code');
-const boot = get({ action: 'bootstrap', code: 'secret' });
+// A code belongs to one campaign and gives one role; codes never come back in an answer.
+assert.strictEqual(get({ action: 'bootstrap', code: 'wrong' }).error, 'wrong code');
+const boot = get({ action: 'bootstrap', code: ' secret ' }); // stray spaces from a phone keyboard
 assert.strictEqual(boot.places.length, 198); assert.strictEqual(boot.results.length, 35); assert.strictEqual(boot.campaign_id, '2026-12-ai-safety-lecture');
+assert.strictEqual(boot.role, 'volunteer');
+assert.strictEqual(get({ action: 'bootstrap', code: 'admin-secret' }).role, 'admin');
+assert.ok(boot.campaigns.every(c => !('admin_code' in c) && !('volunteer_code' in c)), 'codes leaked');
+assert.ok(Array.isArray(boot.names) && boot.names.length > 0 && boot.names.every(n => !/^Claude/.test(n)), JSON.stringify(boot.names));
+assert.strictEqual(get({ action: 'bootstrap', code: 'Secret' }).error, 'wrong code'); // case-sensitive
+// A closed (inactive) campaign's code
+tabs.Campaigns.push(tabs.Campaigns[1].map((v, j) => ({ 0: 'old-campaign', 8: 'FALSE' })[j] ?? v));
+const hd = tabs.Campaigns[0]; tabs.Campaigns[2][hd.indexOf('admin_code')] = 'old-admin'; tabs.Campaigns[2][hd.indexOf('volunteer_code')] = 'old-vol';
+assert.strictEqual(get({ action: 'bootstrap', code: 'old-vol' }).error, 'campaign closed');
 const C = '2026-12-ai-safety-lecture';
 let r = post({ code: 'secret', name: 'Test', action: 'result', campaign_id: C, place_id: 'T06', cycle: '', status: 'posted', posters: 2 });
 assert.ok(r.ok, JSON.stringify(r));
@@ -45,5 +54,8 @@ assert.strictEqual(post({ code: 'secret', name: 'Test', action: 'result', campai
 r = post({ code: 'secret', name: 'Test', action: 'addPlace', campaign_id: C, city: 'Gent', place_name: 'Café X', type: 'stages', tags: 'culture', lat: 51.05, lon: 3.72, location_source: 'gps' });
 assert.ok(r.ok, JSON.stringify(r)); assert.ok(r.place.place_id.startsWith('X-'));
 assert.strictEqual(get({ action: 'bootstrap', code: 'secret' }).places.length, 199);
+// A write always lands in the code's own campaign, whatever campaign_id the phone sends.
+r = post({ code: 'secret', name: 'Test', action: 'result', campaign_id: 'other', place_id: 'T07', cycle: '', status: 'posted', posters: 1 });
+assert.strictEqual(r.result.campaign_id, C);
 assert.ok(get({ action: 'results', code: 'secret', campaign: C, since: new Date(Date.now() - 60000).toISOString() }).results.some(x => x.place_id === 'T06'));
 console.log('backend mock tests passed; log rows:', tabs.Log.length - 1);
