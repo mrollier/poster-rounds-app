@@ -27,14 +27,15 @@ const behind = () => [$("map"), document.querySelector(".bar"), $("sheet")];
 const cover = on => behind().forEach(el => { el.inert = on; });
 
 // Show the setup form and resolve {settings, boot} once the code is checked and the user taps Start/Save.
-// settings: {name, code, home: {lat, lon} | null, campaign}. With a saved code it opens as "Settings";
-// `saved` is the last bootstrap answer, so Save without changes needs no network.
+// settings: {name, code, role, home: {lat, lon} | null, campaign}. First the code (it decides the campaign
+// and your role), then your name, picked from the names the team already uses, or typed.
+// With a saved code it opens as "Settings"; `saved` is the last bootstrap answer, so Save without changes
+// needs no network.
 export function setup(settings, saved = null) {
   const form = $("setup"), part2 = $("setup-part2"), err = $("setup-error"), go = $("setup-go");
   const editing = !!settings.code;
   let home = settings.home || null, boot = editing ? saved : null, checkedCode = boot ? settings.code : null;
 
-  $("f-name").value = settings.name || "";
   $("f-code").value = settings.code || "";
   part2.hidden = !editing;
   go.textContent = editing ? "Save" : "Continue";
@@ -48,14 +49,33 @@ export function setup(settings, saved = null) {
   showHome();
   const fail = msg => { err.textContent = msg; err.hidden = !msg; };
 
-  // Fill the campaign list when more than one campaign is active.
+  // The name: a list of the names already in the sheet + "Someone else…" (then a text box). An older
+  // backend sends no names: then just the text box.
+  const SOMEONE = "*";
+  const showNames = () => {
+    const names = boot.names || [], known = names.includes(settings.name);
+    $("f-name-pick").innerHTML = `<option value="">Choose your name…</option>`
+      + names.map(n => `<option value="${esc(n)}">${esc(n)}</option>`).join("") + `<option value="${SOMEONE}">Someone else…</option>`;
+    $("f-name-pick").value = known ? settings.name : settings.name ? SOMEONE : "";
+    if (!known) $("f-name").value = settings.name || "";
+    showNameBox();
+  };
+  const showNameBox = () => {
+    const list = !!boot.names?.length, typed = !list || $("f-name-pick").value === SOMEONE;
+    $("f-name-pick").hidden = $("f-name-pick-label").hidden = !list;
+    $("f-name").hidden = $("f-name-label").hidden = !typed;
+  };
+  $("f-name-pick").onchange = () => { showNameBox(); if ($("f-name-pick").value === SOMEONE) $("f-name").focus(); };
+  const chosenName = () => (boot.names?.length && $("f-name-pick").value !== SOMEONE ? $("f-name-pick").value : $("f-name").value.trim());
+
+  // The campaign list: only for an older backend that doesn't take the campaign from the code.
   const showCampaigns = () => {
     const list = boot.campaigns;
-    $("campaign-pick").hidden = list.length < 2;
+    $("campaign-pick").hidden = !!boot.role || list.length < 2;
     $("f-campaign").innerHTML = list.map(c =>
       `<option value="${esc(c.campaign_id)}" ${c.campaign_id === boot.campaign_id ? "selected" : ""}>${esc(c.name)} (${esc(c.event_date)})</option>`).join("");
   };
-  if (boot) showCampaigns();
+  if (boot) { showCampaigns(); showNames(); }
 
   $("home-gps").onclick = async () => {
     fail(""); $("home-state").textContent = "Finding your location…";
@@ -78,9 +98,10 @@ export function setup(settings, saved = null) {
     $("setup-cancel").onclick = () => { form.hidden = true; cover(false); setHome(settings.home); resolve({ settings, boot: saved }); };
     form.onsubmit = async e => {
       e.preventDefault();
-      const name = $("f-name").value.trim(), code = $("f-code").value.trim();
-      if (!name) return fail("Please fill in your first name.");
-      if (!code) return fail("Please fill in the team code.");
+      const code = $("f-code").value.trim();
+      if (!code) return fail("Please fill in the code.");
+      const name = part2.hidden ? "" : chosenName();
+      if (!part2.hidden && !name) return fail("Please choose or fill in your name.");
       const wanted = part2.hidden ? (settings.campaign || CONFIG.DEFAULT_CAMPAIGN) : $("f-campaign").value;
       go.disabled = true; fail("");
       try {
@@ -99,9 +120,9 @@ export function setup(settings, saved = null) {
       }
       go.disabled = false;
       showCampaigns();
-      if (part2.hidden) { part2.hidden = false; go.textContent = "Start"; return; } // first run: now ask home + campaign
+      if (part2.hidden) { part2.hidden = false; showNames(); go.textContent = "Start"; return; } // now: name, home
       form.hidden = true; cover(false);
-      resolve({ settings: { name, code, home, campaign: boot.campaign_id }, boot });
+      resolve({ settings: { name, code, role: boot.role || "volunteer", home, campaign: boot.campaign_id }, boot });
     };
   });
 }

@@ -80,14 +80,16 @@
     <h1><img class="logo" src="icons/ea-logo.svg" alt="" width="24" height="36"> Poster map</h1>
     <p class="muted">Where to hang posters, in which order, and what the team has already done.</p>
 
-    <label for="f-name">Your first name</label>
-    <input id="f-name" name="name" autocomplete="given-name" maxlength="40" required>
-
-    <label for="f-code">Team code</label>
+    <label for="f-code">Code</label>
     <input id="f-code" name="code" autocomplete="off" autocapitalize="none" spellcheck="false" required>
-    <p class="hint">Ask the organiser for the code.</p>
+    <p class="hint">Ask the organiser for your campaign's code. Capitals matter.</p>
 
     <div id="setup-part2" hidden>
+      <label for="f-name-pick" id="f-name-pick-label">Your name</label>
+      <select id="f-name-pick"></select>
+      <label for="f-name" id="f-name-label">Your first name</label>
+      <input id="f-name" name="name" autocomplete="given-name" maxlength="40">
+
       <fieldset>
         <legend>Home (optional)</legend>
         <p class="hint">Default start and end of your routes. Saved only on this phone, never sent anywhere.</p>

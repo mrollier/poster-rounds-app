@@ -674,6 +674,7 @@ async function refresh(loud = false) { // loud: say so when offline (only at sta
   try {
     boot = await bootstrap(settings.code, settings.campaign);
     settings.campaign = boot.campaign_id;
+    settings.role = boot.role || "volunteer"; // the organiser may change a code's role in the sheet
     save();
     useBoot(false);
     flush();
@@ -681,7 +682,7 @@ async function refresh(loud = false) { // loud: say so when offline (only at sta
     if (!(e instanceof BackendError)) throw e;
     if (e.offline) { if (loud) toast("Offline: showing the data saved on this phone."); }
     else toast(e.message);
-    if (e.stop) openSettings(); // the team code was changed: ask for the new one
+    if (e.stop) openSettings(); // the code was changed or the campaign closed: ask for the new one
   }
 }
 

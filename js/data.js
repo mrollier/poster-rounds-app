@@ -17,7 +17,9 @@ export class BackendError extends Error {
 
 // Apps Script always answers HTTP 200; failures come back as {ok: false, error}.
 const FRIENDLY = {
-  "wrong team code": "That team code is not right. Check it with the organiser.",
+  "wrong code": "That code is not right. Check it with the organiser (capitals matter).",
+  "campaign closed": "This campaign is closed. Ask the organiser for the code of the current one.",
+  "wrong team code": "That team code is not right. Check it with the organiser.", // (the backend before codes per campaign)
   "TEAM_CODE not set on the server": "The server is not set up yet (no team code). Tell the organiser.",
 };
 
