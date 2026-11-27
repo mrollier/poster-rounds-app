@@ -40,7 +40,7 @@ function tinyMap(p) {
   let tiles = "";
   for (let i = -1; i <= 1; i++) for (let j = -1; j <= 1; j++) {
     const url = CONFIG.TILE_URL.replace("{s}", "a").replace("{z}", z).replace("{x}", tx + i).replace("{y}", ty + j).replace("{r}", "");
-    tiles += `<img src="${url}" alt="" style="left:${Math.round((tx + i) * 256 - x)}px;top:${Math.round((ty + j) * 256 - y)}px">`;
+    tiles += `<img src="${url}" alt="" crossorigin="anonymous" style="left:${Math.round((tx + i) * 256 - x)}px;top:${Math.round((ty + j) * 256 - y)}px">`;
   }
   return `<span class="tmap"><span class="ttiles">${tiles}</span><span class="tpin" aria-hidden="true"></span>
     <span class="tattr">© OpenStreetMap</span></span>`; // (spans: it sits inside the card's button)
