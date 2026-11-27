@@ -148,12 +148,14 @@ export function drawNavLine(coords, straight = false) {
 }
 
 // Zoom the map so all these points fit (used when you switch mode or open a zone, not on every tick).
-// The bar and the sheet cover part of the map, so leave room for them.
+// The bar, the zone chip, the navigation banner and the sheet cover part of the map: leave room for them.
 export function fitTo(points) {
   if (!points.length) return;
   const sheet = document.getElementById("sheet").getBoundingClientRect(), side = sheet.width < window.innerWidth;
+  const covers = [".bar", "#zone-chip:not([hidden])", "#nav:not([hidden])"].map(q => document.querySelector(q)).filter(Boolean);
+  const top = Math.max(...covers.map(e => e.getBoundingClientRect().bottom)) + 24; // + half a pin and a margin
   map.fitBounds(L.latLngBounds(points.map(p => [+p.lat, +p.lon])), {
-    paddingTopLeft: [side ? sheet.width + 30 : 30, 80], paddingBottomRight: [60, side ? 30 : Math.min(sheet.height, window.innerHeight * .6) + 10], maxZoom: 16 });
+    paddingTopLeft: [side ? sheet.width + 30 : 30, top], paddingBottomRight: [60, side ? 30 : Math.min(sheet.height, window.innerHeight * .6) + 10], maxZoom: 16 });
 }
 
 // Zones: each zone is an area with a border that follows streets and water (from statistical sectors).

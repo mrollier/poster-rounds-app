@@ -281,10 +281,10 @@ function renderZones(kept, all) {
     return;
   }
   const key = JSON.stringify([filterKey(), filters.zsize, kept.map(s => s.place.place_id)]);
-  if (zonesSaved?.key !== key) {
-    if (zonesSaved) { view.zone = null; saveView(); } // the zones changed: back to the overview
-    zonesSaved = zonesNow(kept, key, sectors, filters.zsize);
-  }
+  if (zonesSaved?.key !== key) zonesSaved = zonesNow(kept, key, sectors, filters.zsize);
+  // An open zone belongs to one set of zones (ids are just positions): if the zones changed since,
+  // or it was saved by an older version, go back to the overview rather than open some other zone.
+  if (view.zone && view.zoneKey !== key) { view.zone = null; saveView(); }
   const allById = byId(all), zs = zonesSaved.zones.map((z, i) => zoneState(z, i, allById));
   const z = zs.find(q => q.id === view.zone);
   if (z) return renderZone(kept, z);
@@ -339,10 +339,11 @@ function renderZone(kept, z) {
     endPins: single ? [] : [park],
     finished: single ? { text: "Done here. Pick the next zone." }
       : { text: "All stops in this zone done. Walk back to your bike.", label: "Walk back to the P", dest: { ...park, name: "your bike (P)" } },
-    fitKey: JSON.stringify(["zone", z.id]), fitPoints: z.rings.flat().map(([lat, lon]) => ({ lat, lon })) });
+    fitKey: JSON.stringify(["zone", z.id]), // The outline, plus the stops and the P: a stop just over the city line lies outside its sector's outline.
+    fitPoints: [...z.rings.flat().map(([lat, lon]) => ({ lat, lon })), ...z.stops.map(s => s.place), park].filter(Boolean) });
 }
 
-function openZone(id) { view.zone = id; saveView(); closeSheet(); render(); } // close the list: show the zone on the map
+function openZone(id) { view.zone = id; view.zoneKey = zonesSaved?.key; saveView(); closeSheet(); render(); } // close the list: show the zone on the map
 function closeZone() { view.zone = null; saveView(); fitted = ""; render(); }
 $("zone-chip").onclick = closeZone;
 
