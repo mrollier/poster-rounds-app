@@ -1,4 +1,4 @@
-// The three route modes (spec §4.6), ported from the prototype. Pure functions, no DOM.
+// The three route modes (spec §4.6). Pure functions, no DOM.
 // Points are anything with lat/lon (places from the sheet, {lat, lon} for home or my position).
 import { dist, hav, minutes, stopMinutes } from "./geo.js";
 

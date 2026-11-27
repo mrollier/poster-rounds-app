@@ -51,11 +51,12 @@ js/sync.js       merge results + offline outbox   js/data.js     backend calls, 
 js/map.js        Leaflet: pins, lines, blue dot   js/location.js GPS
 js/router.js     real routes (OSRM server)        js/nav.js      in-app navigation
 js/ui.js         setup form, dialogs, toasts      js/addplace.js "+ Add place"
+js/rank.js       learned stars: fit, deck, pairs  js/train.js    the "Train the stars" screen
 sw.js, manifest.webmanifest, icons/   offline support and home-screen install
 data/            seed CSVs (tests only), racks-<city>.json, sectors-<city>.json
 backend/Code.gs  the Apps Script backend          tests/         node --test, plus a local mock backend
-tools/make-icons.js                   redraws the icons
-reference/       the old prototype (kept for reference only)
+tools/fit-set.mjs    turns swipes into a learned star set (docs/star-sets.md)
+tools/make-sectors.js  builds data/sectors-<city>.json from Statbel's open data
 ```
 
 ## Run it locally
@@ -92,7 +93,13 @@ git push origin main
 
 **The backend is separate.** If you change `backend/Code.gs`, paste it into the sheet's Apps Script editor
 (Extensions → Apps Script) and redeploy: **Deploy → Manage deployments → edit (pencil) → Version: New
-version → Deploy**. The URL stays the same. The first-time setup is in [SETUP.md](SETUP.md).
+version → Deploy**. The URL stays the same.
+
+**First-time setup of the backend** (a new sheet): open the sheet → Extensions → Apps Script, paste the
+whole of `backend/Code.gs`, save. Deploy → New deployment → Web app; Execute as **Me**, Who has access
+**Anyone**; authorise (Google warns the app isn't verified: it's your own script) and copy the URL ending in
+`/exec` into `APPS_SCRIPT_URL` in [config.js](config.js). Check it in a browser: `<URL>?action=ping` →
+`{"ok":true}`. Give each campaign an `admin_code` and a `volunteer_code` in the Campaigns tab.
 
 ### Change the backend URL or the map tiles
 

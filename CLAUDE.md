@@ -13,7 +13,7 @@ vendor/leaflet/                      Leaflet 1.9.4, vendored for offline use
 sw.js, manifest.webmanifest, icons/  PWA
 data/                                seed CSVs (tests/dev only), racks-<city>.json, sectors-<city>.json
 backend/Code.gs                      Apps Script backend (deployed by hand from the sheet)
-reference/prototype-index.html      the working prototype; port its algorithms, not its plumbing
+tools/                               fit-set.mjs (learned star sets), make-sectors.js (zone borders)
 tests/                               node --test unit tests (no dependencies)
 docs/SPEC.md                         spec
 ```

@@ -4,10 +4,9 @@ A phone-first web app that helps a small team of volunteers hang event posters a
 where to go, in which order, and what's already done. Hosted on GitHub Pages; shared data in a
 Google Sheet behind a small Apps Script web app.
 
-The current prototype (a Claude artifact) is in `reference/prototype-index.html`. It works and was
-used on the street, so **port its logic, not its plumbing**. Everything Claude-specific in it
-(`claude.use(...)`, the artifact database, `basemap.js` / `geo.js` hand-drawn map, `routes.js`
-precomputed matrix, rounds/days/cargo bike) is dropped.
+It replaced a prototype (a Claude artifact) that was used on the street; its route logic was ported,
+its plumbing (artifact database, hand-drawn map, precomputed distance matrix, rounds/days/cargo bike) was
+dropped.
 
 ---
 
@@ -74,7 +73,7 @@ Places of type `boards` are city poster boards that the city cleans on a schedul
 `none` = never cleaned.
 
 - `cycleStart(city, today)` = date (YYYY-MM-DD, Europe/Brussels) of the most recent cleaning day
-  on or before today. Port `cleaningStart()` from the prototype and generalise it.
+  on or before today. (`cycleStart` in `js/logic.js`.)
 - A board's result is written with `cycle = cycleStart(...)`. When reading, a board counts as done
   only if it has a result row whose `cycle` equals the current cycle. Older rows are history.
 - Non-board places use `cycle = ""` and stay done for the whole campaign.
@@ -148,7 +147,7 @@ campaign: a plain name box and a campaign picker, as before.)
   - half/full: stats (done / posters hung / km and time to go), the ordered list of stops with
     per-stop result menu, note, undo, and Google Maps links.
 - Tap targets ≥ 44 px, high contrast (readable in daylight), works with one thumb.
-- Desktop: same app, sheet becomes a side panel (as in the prototype).
+- Desktop: same app, sheet becomes a side panel.
 
 ### 4.4 Live location (essential)
 
@@ -169,7 +168,7 @@ campaign: a plain name box and a campaign picker, as before.)
 
 ### 4.6 Route modes
 
-Port the algorithms from the prototype (search for the function names):
+The algorithms are in `js/routes.js` and `js/modes.js` (function names in brackets):
 
 1. **All left**: no route. Every open stop is a pin with its stars; the card is the nearest open stop
    (from my position, else home) and the list runs from near to far. It re-sorts as I move (every 50 m).
