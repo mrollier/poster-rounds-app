@@ -87,7 +87,6 @@ export function computeWay(from, to, candidates, budget, mode) {
 // ones too: so the borders stay put while the team works, and a finished zone simply turns grey.
 
 export const ZONE_MINUTES = { S: 20, M: 45, L: 90 }; // Small / Medium / Large: walking + hanging time
-const RACK_MAX = 400;     // metres: a bike rack further than this from every stop of the zone doesn't count
 const key = p => `${p[0]},${p[1]}`;
 
 // Walking loop from the bike spot past every stop and back. Returns the stops in order and the metres.
@@ -221,18 +220,13 @@ export function zoneOutline(rings) {
   return [...count.values()].filter(Boolean);
 }
 
-// Where to leave the bike for a zone, seen from where you are coming from: the bike rack (within 400 m
-// of a stop) that makes biking there + walking the loop quickest. No rack: the stop nearest to you.
-// ponytail: the 15 racks closest to you only, so it stays quick with thousands of racks.
-export function parkFor(stops, from, racks) {
-  const near = racks.filter(r => stops.some(s => hav(r, s) <= RACK_MAX))
-    .sort((a, b) => hav(from, a) - hav(from, b)).slice(0, 15);
+// Where to leave the bike for a zone: the public bike rack nearest the middle of its stops, so the walk
+// to every stop is short. No rack within 150 m: the middle itself. The same spot whoever opens the zone.
+const PARK_MAX = 150; // metres
+export function parkAt(stops, racks) {
+  const r5 = x => Math.round(x * 1e5) / 1e5;
+  const mid = { lat: r5(avg(stops, "lat")), lon: r5(avg(stops, "lon")) };
   let best = null;
-  for (const r of near) {
-    const t = minutes(dist(from, r), "bike") + minutes(walkLoop(r, stops).metres, "walk");
-    if (!best || t < best.t) best = { t, r };
-  }
-  if (best) return { lat: best.r.lat, lon: best.r.lon, rack: true };
-  const s = [...stops].sort((a, b) => hav(from, a) - hav(from, b))[0];
-  return { lat: +s.lat, lon: +s.lon, rack: false };
+  for (const r of racks) if (hav(mid, r) <= PARK_MAX && (!best || hav(mid, r) < hav(mid, best))) best = r;
+  return best ? { lat: best.lat, lon: best.lon, rack: true } : { ...mid, rack: false };
 }

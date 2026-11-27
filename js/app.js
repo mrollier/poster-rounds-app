@@ -7,7 +7,7 @@ import { setup, toast, ask, $ } from "./ui.js";
 import { stars, eventTypes, eventWeights, cleanBoot, num, cycleStart, brusselsToday, cycleFor, resultKey, STATUS_LABEL, chunkLinks } from "./logic.js";
 import { mergeResults, withPending, createQueue } from "./sync.js";
 import { dist, minutes } from "./geo.js";
-import { tripTime, orderStops, parkFor, ZONE_MINUTES } from "./routes.js";
+import { tripTime, orderStops, parkAt, ZONE_MINUTES } from "./routes.js";
 import { computeWayIds, planWay, zonesNow, zoneState, byId, done } from "./modes.js";
 import { addPlace } from "./addplace.js";
 import { startNav, stopNav, navUpdate, navigating, navTarget, onNavChange } from "./nav.js";
@@ -59,7 +59,8 @@ function origin() {
 
 // ---------- View state (saved on this phone) ----------
 
-const view = { mode: "all", zone: null, zonePark: null, ...store.get("view", {}) };
+const view = { mode: "all", zone: null, ...store.get("view", {}) };
+delete view.zonePark; // older versions remembered a bike spot per zone
 if (!["all", "way", "zones"].includes(view.mode)) view.mode = "all";
 const filters = { min: "1", skip: [], skipFor: null, event: null, travel: "bike", zsize: "M", ...store.get("filters", {}) };
 let way = { budget: 15, ...store.get("way", {}) };       // On my way: {from, to, budget, ids, extra, direct}
@@ -282,7 +283,7 @@ function renderZones(kept, all) {
   }
   const key = JSON.stringify([filterKey(), filters.zsize, kept.map(s => s.place.place_id)]);
   if (zonesSaved?.key !== key) {
-    if (zonesSaved) { view.zone = null; view.zonePark = null; saveView(); } // the zones changed: back to the overview
+    if (zonesSaved) { view.zone = null; saveView(); } // the zones changed: back to the overview
     zonesSaved = zonesNow(kept, key, sectors, filters.zsize, labels);
   }
   const allById = byId(all), zs = zonesSaved.zones.map((z, i) => zoneState(z, i, allById));
@@ -319,18 +320,13 @@ const zoneShape = (q, dots) => ({ id: q.id, name: dots ? q.name : "", rings: q.r
 
 function renderZone(kept, z) {
   const single = z.total === 1;
-  // The bike spot depends on where you come from, so it's picked when you open the zone, then kept:
-  // the walking loop shouldn't reshuffle while you walk it.
-  if (!single && view.zonePark?.zone !== z.id) {
-    const open = z.stops.filter(s => !done(s));
-    view.zonePark = { zone: z.id, ...parkFor((open.length ? open : z.stops).map(s => s.place), origin(), racks || []) };
-    saveView();
-  }
-  const park = single ? null : { lat: view.zonePark.lat, lon: view.zonePark.lon, label: "P" };
+  // The bike spot: the bike rack nearest the middle of the zone's stops (or the middle itself).
+  const p = single ? null : parkAt(z.stops.map(s => s.place), racks || []);
+  const park = p && { lat: p.lat, lon: p.lon, label: "P" };
   zonePark = park;
   $("mode-box").innerHTML = `<div class="mode-line"><button type="button" class="btn small" data-ui="zone-back">← All zones</button>
     <span><b>${esc(z.name)}</b>${single ? "" : ` · ${z.total} stops · loop about ${z.mins} min`}</span></div>
-    ${single ? "" : `<button type="button" class="btn bike" data-ui="nav-park">Bike to the P${view.zonePark.rack ? " (bike rack)" : ""}</button>`}`;
+    ${single ? "" : `<button type="button" class="btn bike" data-ui="nav-park">Bike to the P${p.rack ? " (bike rack)" : ""}</button>`}`;
   drawZones([zoneShape(z, false)], openZone); // just this zone's border, under the stops' pins
   renderRoute({ kept, route: single ? z.stops : orderStops(park, z.stops.map(s => s.place), park).map(p => z.stops.find(s => s.place === p)),
     scope: z.stops, start: single ? origin() : park, end: park,
@@ -418,7 +414,7 @@ $("sheet").addEventListener("click", e => {
   if (ui === "zone-open") openZone(el.dataset.zone);
   if (ui === "nav-end" && finishedDest) beginNav(finishedDest, routeTravel);
   if (ui === "nav-park" && zonePark) beginNav({ ...zonePark, name: "the P (bike spot)" }, "bike");
-  if (ui === "zone-back") { view.zone = null; view.zonePark = null; saveView(); fitted = ""; render(); }
+  if (ui === "zone-back") { view.zone = null; saveView(); fitted = ""; render(); }
 });
 $("sheet").addEventListener("change", e => {
   if (e.target.name === "budget") setWay({ budget: +e.target.value });

@@ -2,7 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs";
 import path from "node:path";
-import { orderStops, tripTime, computeWay, buildZones, sectorOf, zoneOutline, parkFor, compactness, ZONE_MINUTES } from "../js/routes.js";
+import { orderStops, tripTime, computeWay, buildZones, sectorOf, zoneOutline, parkAt, compactness, ZONE_MINUTES } from "../js/routes.js";
 import { stars, eventWeights } from "../js/logic.js";
 import { readTab, DATA } from "./csv.js";
 
@@ -121,11 +121,10 @@ test("zoneOutline: two squares side by side have 6 border edges (the shared one 
   assert.equal(zoneOutline([sq(0, 0), sq(0, 1)]).length, 6);
 });
 
-test("parkFor: the bike rack on the side you come from", () => {
-  const st = [at("a", 1, 1), at("b", 1, 1.2)];
-  const west = { lat: 51.015, lon: 3.711 }, east = { lat: 51.015, lon: 3.7225 };
-  const fromWest = { lat: 51.015, lon: 3.6 }, fromEast = { lat: 51.015, lon: 3.8 };
-  assert.deepEqual(parkFor(st, fromWest, [west, east]), { ...west, rack: true });
-  assert.deepEqual(parkFor(st, fromEast, [west, east]), { ...east, rack: true });
-  assert.deepEqual(parkFor(st, fromEast, []), { lat: st[1].lat, lon: st[1].lon, rack: false }); // no rack: nearest stop
+test("parkAt: the bike rack nearest the middle, else the middle", () => {
+  const st = [{ lat: 51.015, lon: 3.705 }, { lat: 51.015, lon: 3.715 }]; // middle: 51.015, 3.71
+  const near = { lat: 51.015, lon: 3.7101 }, far = { lat: 51.015, lon: 3.704 };
+  assert.deepEqual(parkAt(st, [far, near]), { ...near, rack: true });
+  assert.deepEqual(parkAt(st, [{ lat: 51.0177, lon: 3.71 }]), { lat: 51.015, lon: 3.71, rack: false }); // 300 m away
+  assert.deepEqual(parkAt(st, []), { lat: 51.015, lon: 3.71, rack: false });
 });
