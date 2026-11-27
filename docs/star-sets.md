@@ -32,7 +32,8 @@ The plain-words explanation is in README "How the stars are made"; the code is `
      > pos = closer_top / middle / closer_bottom.
    - Then:
      - collect both passes in `placements.csv` (`place_id,k,pos`, two rows per place);
-     - where the two passes differ by more than one anchor gap, do a third pass and keep the middle answer;
+     - where the two passes differ by more than one anchor gap, do a third pass and add its rows too (the tool
+       keeps the middle of the three);
      - report the agreement between the passes: a Spearman correlation below ~0.8 means the anchors are too
        vague, so describe them better rather than doing more passes.
 4. **Build and check:**

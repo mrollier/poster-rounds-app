@@ -52,13 +52,14 @@ export function fitBT(ids, comparisons, { sd = 1.5, mean = {} } = {}) {
 // likely are. Types not listed get 1.
 const QUOTA = { sci: 9, boards: 7, arts: 5, student: 4, ideas: 3, startups: 3, libraries: 3, community: 3, bookshops: 3,
   research: 2, makers: 2, veggie: 2, cafes: 2, musicvenues: 2, stages: 2 };
-const active = p => p.active === undefined || /^(true|yes|1|x)$/i.test(String(p.active).trim());
+// Active, as the backend reads it: TRUE / yes / 1 / x (a sheet without the column: all active).
+export const isActive = p => p.active === undefined || /^(true|yes|1|x)$/i.test(String(p.active).trim());
 
 // 60 place ids for swiping. `must`: (parts of) names that always go in, e.g. places the organiser knows
 // are rated wrong. Within a type, busy and quiet places take turns (importance 3, 2, 1, 3, …), so the deck
 // shows the whole range. Deterministic: same places in, same deck out.
 export function chooseDeck(places, { size = 60, must = [] } = {}) {
-  const live = places.filter(active).sort((a, b) => (a.place_id < b.place_id ? -1 : 1));
+  const live = places.filter(isActive).sort((a, b) => (a.place_id < b.place_id ? -1 : 1));
   const deck = [], take = p => { if (p && !deck.includes(p.place_id)) deck.push(p.place_id); };
   for (const m of must) take(live.find(p => p.name.toLowerCase().includes(m.toLowerCase())));
   const types = [...new Set(live.map(p => p.type))].sort();

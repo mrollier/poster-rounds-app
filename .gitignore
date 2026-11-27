@@ -1,2 +1,13 @@
 .DS_Store
 .playwright-mcp/
+.superpowers/
+# Work files of tools/fit-set.mjs (docs/star-sets.md), wherever it runs: swipes hold admins' names.
+fit-work.json
+scores.csv
+set.csv
+swipes.csv
+placements*.csv
+rate-*.csv
+brief-*.md
+/places.csv
+/types.csv

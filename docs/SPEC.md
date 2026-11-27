@@ -23,17 +23,22 @@ dropped.
 ## 2. Data model (Google Sheet "Poster map data (EA Ghent)")
 
 All tabs have a header row; the app reads them as lists of objects (strings). See the sheet's
-README tab. Seed copies of every tab are in `data/*.csv` (for tests and offline development only;
-the live app always reads the sheet).
+README tab. Seed copies of Places, Campaigns, Results, Cities and Types are in `data/*.csv` (for tests
+and offline development only; the live app always reads the sheet).
 
 | Tab | Key | Purpose |
 |---|---|---|
 | Places | `place_id` | Every poster place: `city, name, org, type, tags, importance, access, posters, address, lat, lon, hours, open_days, notes, location_source, active, added_by, added_at` |
-| Campaigns | `campaign_id` | One event: `name, city, event_date, postering_from, postering_until, posters_total, event_url, active, event_type` (`event_type` = one of the `ev:` names in Types; older `w:<tag>` columns are no longer used) |
+| Campaigns | `campaign_id` | One event: `name, city, event_date, postering_from, postering_until, posters_total, event_url, active, event_type, admin_code, volunteer_code` (`event_type` = one of the `ev:` names in Types; the codes never leave the sheet) |
 | Results | (`campaign_id`, `place_id`, `cycle`) | Latest result: `status, posters, note, by, at` |
 | Cities | `city` | `centre_lat, centre_lon, zoom, board_cleaning, board_rules, board_rules_source` |
 | Types | `type` | The types of place: `label, color` (filter + pin colour), plus one weight column per kind of event: `ev:AI Safety`, `ev:Animal Welfare`, `ev:Music`, `ev:Poetry`, … (0–3) |
 | Log | – | Append-only audit of writes (backend only; the app never reads it) |
+| Swipes | `swipe_id` | Admins' star training (append only): `at, by, campaign_id, deck_version, round, left_id, right_id, outcome, undo_of` |
+| Overrides | (`campaign_id`, `place_id`) | An admin's stars for one place; the latest row wins, an empty `stars` clears: `stars, by, at` |
+| Scores | (`set_id`, `place_id`) | A learned star set's score per place: `score, source, rater, n, updated_at` (`tools/fit-set.mjs`) |
+| Sets | `set_id` | The set's 3★ / 2★ / 1★ score lines `t3, t2, t1`, `event, made_by, made_at, note` (`set_id` = a campaign_id, or `default:<event>`) |
+| Summary | – | Stops and posters per volunteer: a formula over Results, for the organiser |
 
 ### 2.1 Importance stars (computed, never stored)
 
@@ -88,11 +93,10 @@ Places of type `boards` are city poster boards that the city cleans on a schedul
 
 Apps Script web app bound to the sheet. Read the header comment of `Code.gs`.
 
-- `GET ?action=bootstrap&code=…[&campaign=…]` → `{campaigns, campaign_id, cities, types, places, results, serverTime}`
 - Every call carries a `code`. Campaigns has `admin_code` and `volunteer_code` per campaign: the code
   decides the campaign (writes always land in it, whatever `campaign_id` the phone sends) and the role
   (`admin` / `volunteer`). Errors: `wrong code`, `campaign closed` (the campaign is not active).
-- `GET ?action=bootstrap&code=…` → `{campaign_id, role, names, campaigns: [the campaign, without codes], cities, types, places, results, serverTime}`;
+- `GET ?action=bootstrap&code=…` → `{campaign_id, role, names, campaigns: [the campaign, without codes], cities, types, places, results, set, overrides, swipes (admins only), serverTime}`;
   `names` = first names already in Results (`by`) and Places (`added_by`), without "Claude …".
 - `GET ?action=results&code=…&since=ISO` → `{results, serverTime}` (polling)
 - `POST` body (JSON, **sent as `Content-Type: text/plain`** to avoid a CORS preflight):
@@ -120,8 +124,8 @@ Don't change the backend's contract without updating `Code.gs` too; Michiel must
 - PWA: `manifest.webmanifest` (name "Poster map", standalone, portrait, theme colour), icons,
   and a service worker that caches the app shell and the last bootstrap response
   (stale-while-revalidate). Tiles: cache what was viewed (cap ~50 MB).
-- `config.js` (committed, public): `APPS_SCRIPT_URL`, `TILE_URL`, `TILE_ATTRIBUTION`,
-  `DEFAULT_CAMPAIGN` (optional). **No secrets in the repo.**
+- `config.js` (committed, public): `APPS_SCRIPT_URL`, `TILE_URL`, `TILE_ATTRIBUTION`, `ROUTER_URL`,
+  `ROUTER_ATTRIBUTION`. **No secrets in the repo.**
 - No framework, no TypeScript. Plain modules, short functions, comments that explain the why.
 - Distances are **straight line × 1.3** (haversine). There is no precomputed matrix any more.
   Speeds: bike 15 km/h, walk 4.5 km/h. Time at a stop: 3 min for boards, 5 min otherwise.
@@ -133,8 +137,7 @@ Don't change the backend's contract without updating `Code.gs` too; Michiel must
 3. Home (optional): "Use my current location" or "Tap on the map". Stored **only on the phone**
    (localStorage). Never sent to the backend, never in the repo. Used as default start/end.
 
-Settings (code, name, home) are reachable later from a small menu. (An older backend without codes per
-campaign: a plain name box and a campaign picker, as before.)
+Settings (code, name, home) are reachable later from ☰ (for admins: a menu with Train the stars and Settings).
 
 ### 4.3 Main screen (phone layout)
 
@@ -173,7 +176,7 @@ The algorithms are in `js/routes.js` and `js/modes.js` (function names in bracke
 1. **All left**: no route. Every open stop is a pin with its stars; the card is the nearest open stop
    (from my position, else home) and the list runs from near to far. It re-sorts as I move (every 50 m).
    ("Come back later" stops wait until nothing else is left.)
-2. **On my way** (`computeWay`, `wayVariant`, `updateWay`): from A to B (my position, home, a
+2. **On my way** (`computeWay`, `computeWayIds`, `planWay`): from A to B (my position, home, a
    tapped point, or a stop's pin), with an extra-time budget (5/15/30/60 min); cheapest insertion
    until the budget is used.
 3. **Zones** (`buildZones`, `compactness`, `zoneOutline`, `parkAt`, `zoneMinutes`, `drawZones`): areas whose borders
@@ -246,9 +249,10 @@ base map, result-log export/import, KML/GeoJSON export, printing. Don't add acco
 
 - Lighthouse (mobile): PWA installable, accessibility ≥ 90, works offline after first load.
 - Unit tests (Node's built-in `node --test`, no dependencies) for: stars, cycleStart for several
-  dates (incl. month boundaries), buildZones on the seed data (deterministic, sizes) and on small synthetic grids (merging, cutting, outline, bike spot), orderStops (loop
+  dates (incl. month boundaries), buildZones on the seed data (deterministic, sizes) and on small synthetic grids (merging, outline, bike spot), orderStops (loop
   shorter than random order), result merge (last write wins), offline queue.
-- One Playwright smoke test (optional) against a mocked backend.
+- The backend runs against a fake sheet in the tests (`tests/fake-sheet.js`); screen checks are done by hand
+  with Playwright against the local mock server (`node tests/mock-server.js`).
 - No console errors. All user-visible text in plain English.
 
 ## 8. Deploy

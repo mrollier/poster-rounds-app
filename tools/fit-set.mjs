@@ -8,17 +8,18 @@
 //        of place that matters for the event; e.g. coworking and maker spaces for AI Safety).
 //   2. Claude rates every place in "toRate" by putting it between two anchors → placements.csv with
 //        columns place_id,k,pos (k = the anchor just above it, -1 = above the best; pos = closer_top /
-//        middle / closer_bottom). Two passes = two rows per place: they are averaged.
+//        middle / closer_bottom). Two passes = two rows per place: averaged; three rows (a third pass where
+//        the two disagreed): the middle one.
 //   3. node tools/fit-set.mjs build fit-work.json placements.csv <places.csv> <types.csv> <set_id> "<event>" <swipes.csv>
 //        Prints the check (how often the new scores and today's rule pick the swipe winner of the held-back
 //        places), then writes scores.csv and set.csv to paste into the Scores and Sets tabs.
 import fs from "node:fs";
 import { parseCSV } from "../tests/csv.js";
-import { fitBT, swipesToComparisons, placeBetween, sharesToThresholds, starsFromScore, LINES, tierLabels, SHARES } from "../js/rank.js";
+import { fitBT, swipesToComparisons, placeBetween, sharesToThresholds, starsFromScore, LINES, tierLabels, SHARES, isActive } from "../js/rank.js";
 import { stars, eventWeights } from "../js/logic.js";
 
-const table = f => { const [head, ...rows] = parseCSV(fs.readFileSync(f, "utf8")); return rows.map(r => Object.fromEntries(head.map((k, i) => [k, r[i]]))); };
-const active = p => !/^(false|no|0)$/i.test(String(p.active ?? "TRUE").trim());
+const table = f => { const [head, ...rows] = parseCSV(fs.readFileSync(f, "utf8")); return rows.map(r => Object.fromEntries(head.map((k, i) => [k, r[i] ?? ""]))); };
+const median = xs => { const s = [...xs].sort((a, b) => a - b), m = s.length >> 1; return s.length % 2 ? s[m] : (s[m - 1] + s[m]) / 2; };
 const [cmd, ...args] = process.argv.slice(2);
 // The swipes as comparisons between active places, plus the "3★ line" / "1★ line" from the "Both 3★ / Both 0★"
 // swipes (js/rank.js). The lines are fitted with the places but are never anchors, held out, or written out.
@@ -31,7 +32,7 @@ function swipedPlaces(swipesFile, live) {
 
 if (cmd === "anchors") {
   const [swipesFile, placesFile, ...extra] = args;
-  const places = table(placesFile).filter(active), live = new Set(places.map(p => p.place_id));
+  const places = table(placesFile).filter(isActive), live = new Set(places.map(p => p.place_id));
   // Only swipes between places that are still active (a place removed from the sheet can't be an anchor).
   const { comps, swiped } = swipedPlaces(swipesFile, live);
   const all = fitBT([...swiped, ...REF], comps), ranked = [...swiped].sort((x, y) => all.get(y).score - all.get(x).score);
@@ -45,18 +46,18 @@ if (cmd === "anchors") {
     .sort((x, y) => fitted.get(y).score - fitted.get(x).score)
     .map(id => { const p = places.find(q => q.place_id === id); return { place_id: id, name: p?.name, type: p?.type, address: p?.address, score: fitted.get(id).score }; });
   const toRate = places.map(p => p.place_id).filter(id => !fitted.has(id));
-  fs.writeFileSync("fit-work.json", JSON.stringify({ heldout, anchors, toRate, comparisons: comps.length }, null, 1));
+  fs.writeFileSync("fit-work.json", JSON.stringify({ heldout, anchors, toRate }, null, 1));
   console.log(`${comps.length} comparisons over ${swiped.length} places; ${heldout.length} held back; ${toRate.length} to rate. Anchors (best first):`);
   anchors.forEach((a, k) => console.log(`  ${k}. ${a.name} (${a.type}) ${a.score.toFixed(2)}`));
 } else if (cmd === "build") {
   const [workFile, placementsFile, placesFile, typesFile, setId, event] = args;
-  const work = JSON.parse(fs.readFileSync(workFile, "utf8")), places = table(placesFile).filter(active);
+  const work = JSON.parse(fs.readFileSync(workFile, "utf8")), places = table(placesFile).filter(isActive);
   const live = new Set(places.map(p => p.place_id));
   const { comps, swiped } = swipedPlaces(args[6] || "swipes.csv", live);
-  // Claude's placements → scores (passes averaged).
+  // Claude's placements → scores: two passes averaged; with a third pass (the two disagreed), the middle one.
   const placed = {};
   for (const r of table(placementsFile)) (placed[r.place_id] ||= []).push(placeBetween(work.anchors, +r.k, r.pos));
-  const predicted = Object.fromEntries(Object.entries(placed).map(([id, xs]) => [id, xs.reduce((a, b) => a + b, 0) / xs.length]));
+  const predicted = Object.fromEntries(Object.entries(placed).map(([id, xs]) => [id, xs.length > 2 ? median(xs) : xs.reduce((a, b) => a + b, 0) / xs.length]));
   // The check: on swipes that involve a held-back place, who picks the winner more often?
   const final = fitBT([...swiped, ...REF], comps);
   const train = fitBT([...swiped.filter(id => !work.heldout.includes(id)), ...REF], comps.filter(c => !work.heldout.includes(c.a) && !work.heldout.includes(c.b)));
@@ -80,7 +81,7 @@ if (cmd === "anchors") {
   fs.writeFileSync("set.csv", `set_id,event,t3,t2,t1,made_by,made_at,note\n"${setId}","${event}",${t.t3.toFixed(3)},${t.t2.toFixed(3)},${t.t1.toFixed(3)},Claude,${now},"${comps.length} swipes"\n`);
   console.log(`${rows.length} scores. Stars 3/2/1/0: ${count[3]}/${count[2]}/${count[1]}/${count[0]}. Wrote scores.csv and set.csv.`);
   // The check on the shares: places the admins called 3★ / 1–2★ / 0★ with the "Both …" buttons, and the stars
-  // the set gives them. Many "called 3★" places at 2★ means the 10% share is too tight for this event.
+  // the set gives them. Many "called 3★" places at 2★ means the 3★ share is too tight for this event.
   const called = tierLabels(table(args[6] || "swipes.csv")), starOf = new Map(rows.map(r => [r[1], starsFromScore(+r[2], t)]));
   for (const [label, k] of [["3★", 3], ["1–2★", 1], ["0★", 0]]) {
     const ids = Object.keys(called).filter(id => starOf.has(id) && Math.round(called[id].reduce((a, b) => a + b, 0) / called[id].length) === k);

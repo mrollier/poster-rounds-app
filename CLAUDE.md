@@ -14,8 +14,8 @@ sw.js, manifest.webmanifest, icons/  PWA
 data/                                seed CSVs (tests/dev only), racks-<city>.json, sectors-<city>.json
 backend/Code.gs                      Apps Script backend (deployed by hand from the sheet)
 tools/                               fit-set.mjs (learned star sets), make-sectors.js (zone borders)
-tests/                               node --test unit tests (no dependencies)
-docs/SPEC.md                         spec
+tests/                               node --test unit tests (no dependencies); mock-server.js for local runs
+docs/SPEC.md                         spec; docs/star-sets.md: how a learned star set is made
 ```
 
 ## Rules

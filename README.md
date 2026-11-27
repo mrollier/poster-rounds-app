@@ -33,8 +33,9 @@ Phone (this web app, GitHub Pages)  ──HTTPS──▶  Apps Script web app (b
    home, last data, unsent changes               upserts results, appends to Log            (EA Ghent)"
 ```
 
-- **The Google Sheet** is the database: tabs Places, Campaigns, Results, Cities, Types, Log, and Summary
-  (stops and posters per volunteer, a formula over Results; see its README tab).
+- **The Google Sheet** is the database: tabs Places, Campaigns (with each campaign's codes), Results, Cities,
+  Types, Log, Swipes and Overrides (admins' star training and fixes), Scores and Sets (learned stars), and
+  Summary (stops and posters per volunteer, a formula over Results; see its README tab).
 - **The backend** (`backend/Code.gs`) is a small Apps Script bound to the sheet. Every call needs a
   **code**. Each campaign has two, in its Campaigns row: `admin_code` (organisers) and `volunteer_code`
   (everyone else). The code decides the campaign and the role; codes live in the sheet and on the phones,
@@ -113,7 +114,7 @@ Each campaign row in the Campaigns tab has an `admin_code` and a `volunteer_code
 with lowercase letters and digits). Share the volunteer code with the team, the admin code only with
 organisers. To change one, edit it in the sheet: phones with the old code get "That code is not right" and
 can type the new one under ☰. A campaign whose `active` is not TRUE refuses its codes ("This campaign is
-closed"). Admins can do more in the app (training the stars, Part 3 of round 5).
+closed"). Admins can do more in the app: train the stars and fix a place's stars in its pop-up.
 
 ## A new campaign
 
@@ -251,8 +252,10 @@ app could do it on its own; for now a person checks each set before it goes live
 - cleaning cycles across month and year boundaries;
 - the route algorithms, and following a route line (navigation);
 - merging results and the offline outbox;
-- Google Maps link splitting;
-- the backend itself, run against a fake sheet.
+- Google Maps links (the place, and trips split into parts);
+- learned stars: the Bradley–Terry fit, the "Both …" lines, the swipe deck and its Swiss rounds, shares to stars;
+- the CSV reader the tools use;
+- the backend itself, run against a fake sheet (`tests/fake-sheet.js`, also used by the mock server).
 
 For a Lighthouse audit of the main screen, start the mock server and audit
 `http://localhost:8787/tests/lh-seed.html`, which logs in with the mock code and opens the app.
