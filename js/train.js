@@ -30,21 +30,43 @@ function loadPlan(campaignId, name, fromServer, freshDeck) {
   return { deck: freshDeck, seed, h: historyFromRows(fromServer || [], name, DECK) };
 }
 
-// A small map around the place: one map tile with a pin in the middle (no extra map library needed).
+// A small map around the place, with a pin in the middle (no extra map library needed). Zoom 13 shows about
+// a kilometre each way: enough to see which part of town it is in. The 3×3 map tiles around the place's own
+// tile fill the box wherever the place sits in its tile (one tile alone left grey gaps).
 function tinyMap(p) {
-  const z = 16, n = 2 ** z, lat = +p.lat * Math.PI / 180;
-  const x = (+p.lon + 180) / 360 * n, y = (1 - Math.log(Math.tan(lat) + 1 / Math.cos(lat)) / Math.PI) / 2 * n;
-  const url = CONFIG.TILE_URL.replace("{s}", "a").replace("{z}", z).replace("{x}", Math.floor(x)).replace("{y}", Math.floor(y)).replace("{r}", "");
-  const px = Math.round((x % 1) * 256), py = Math.round((y % 1) * 256);
-  return `<div class="tmap" style="background-image:url('${url}');background-position:calc(50% - ${px - 128}px) calc(50% - ${py - 128}px)">
-    <span class="tpin" aria-hidden="true"></span></div>`;
+  const z = 13, n = 256 * 2 ** z, lat = +p.lat * Math.PI / 180;
+  const x = (+p.lon + 180) / 360 * n, y = (1 - Math.log(Math.tan(lat) + 1 / Math.cos(lat)) / Math.PI) / 2 * n; // pixels
+  const tx = Math.floor(x / 256), ty = Math.floor(y / 256);
+  let tiles = "";
+  for (let i = -1; i <= 1; i++) for (let j = -1; j <= 1; j++) {
+    const url = CONFIG.TILE_URL.replace("{s}", "a").replace("{z}", z).replace("{x}", tx + i).replace("{y}", ty + j).replace("{r}", "");
+    tiles += `<img src="${url}" alt="" style="left:${Math.round((tx + i) * 256 - x)}px;top:${Math.round((ty + j) * 256 - y)}px">`;
+  }
+  return `<div class="tmap"><div class="ttiles">${tiles}</div><span class="tpin" aria-hidden="true"></span>
+    <span class="tattr">© OpenStreetMap</span></div>`;
+}
+
+// The place's logo: the `logo` column if filled in, else the icon of its website (Google's icon service).
+// No logo found: the type icon alone (see dropMissingLogos).
+function logoUrl(p) {
+  if (p.logo) return p.logo;
+  try { return p.website ? `https://www.google.com/s2/favicons?sz=64&domain=${new URL(/^https?:/.test(p.website) ? p.website : `https://${p.website}`).hostname}` : ""; }
+  catch { return ""; }
+}
+// Google answers "no icon known" with a 16 px globe: treat that (and a broken image) as no logo.
+function dropMissingLogos(root) {
+  for (const img of root.querySelectorAll(".tlogo")) {
+    const check = () => { if (img.naturalWidth <= 16) img.remove(); };
+    img.onerror = () => img.remove();
+    img.onload = check;
+    if (img.complete) check();
+  }
 }
 
 function cardHtml(p, type, where, side) {
-  let host = "";
-  try { host = p.website ? new URL(/^https?:/.test(p.website) ? p.website : `https://${p.website}`).hostname : ""; } catch { /* no icon */ }
+  const logo = logoUrl(p);
   return `<div class="tcard" data-side="${side}" role="button" tabindex="0" aria-label="${esc(p.name)} is better">
-    <div class="ticon" aria-hidden="true">${ICON[p.type] || "📍"}${host ? `<img src="https://icons.duckduckgo.com/ip3/${esc(host)}.ico" alt="" width="20" height="20" loading="lazy">` : ""}</div>
+    <div class="ticon" aria-hidden="true">${logo ? `<img class="tlogo" src="${esc(logo)}" alt="" width="40" height="40">` : ""}${ICON[p.type] || "📍"}</div>
     <div class="tname">${esc(p.name)}</div>
     <div class="tmeta">${esc(type?.label || p.type)}</div>
     <div class="tmeta">${esc(p.address)}</div>
@@ -77,6 +99,7 @@ export function openTrain(ctx) {
     $("train-count").textContent = `${doneNow} / ${goal} · ${h.length} of ${TOTAL} in total`;
     const [L, R] = [byId.get(pair.left), byId.get(pair.right)];
     $("train-pair").innerHTML = cardHtml(L, types[L.type], ctx.describe(L), "left") + cardHtml(R, types[R.type], ctx.describe(R), "right");
+    dropMissingLogos($("train-pair"));
     $("train-undo").disabled = h.length === 0;
   };
   const answer = outcome => {
