@@ -29,14 +29,16 @@ The full product and technical spec is in [docs/SPEC.md](docs/SPEC.md).
 
 ```
 Phone (this web app, GitHub Pages)  ──HTTPS──▶  Apps Script web app (backend/Code.gs)  ──▶  Google Sheet
-   localStorage: your name, team code,           checks the team code, reads tabs,          "Poster map data
+   localStorage: your name, code, role,          checks the code, reads tabs,               "Poster map data
    home, last data, unsent changes               upserts results, appends to Log            (EA Ghent)"
 ```
 
-- **The Google Sheet** is the database: tabs Places, Campaigns, Results, Cities, Types, Log (see its README tab).
-- **The backend** (`backend/Code.gs`) is a small Apps Script bound to the sheet. Every call needs the
-  **team code**, a shared password that lives only in the Script properties and on the volunteers' phones,
-  never in this repo.
+- **The Google Sheet** is the database: tabs Places, Campaigns, Results, Cities, Types, Log, and Summary
+  (stops and posters per volunteer, a formula over Results; see its README tab).
+- **The backend** (`backend/Code.gs`) is a small Apps Script bound to the sheet. Every call needs a
+  **code**. Each campaign has two, in its Campaigns row: `admin_code` (organisers) and `volunteer_code`
+  (everyone else). The code decides the campaign and the role; codes live in the sheet and on the phones,
+  never in this repo, and are never sent back by the backend.
 - **The app** is plain HTML, CSS and JavaScript modules: no build step, no framework, no npm packages at
   runtime. Leaflet 1.9.4 is copied into `vendor/leaflet/`.
 
@@ -64,7 +66,7 @@ You need Python 3 (or any static file server) and, for the tests and the mock ba
 # Against the real sheet: serve the folder and open http://localhost:8000 in Chrome or Safari
 python3 -m http.server 8000
 
-# Against a fake backend with the seed data (nothing is saved; team code "secret")
+# Against a fake backend with the seed data (nothing is saved; codes "secret" = volunteer, "admin-secret" = admin)
 node tests/mock-server.js            # then open http://localhost:8787
 PORT=8791 node tests/mock-server.js  # a second, separate one (any port 8787–8799 uses the mock)
 
@@ -98,10 +100,13 @@ All are in [config.js](config.js). `APPS_SCRIPT_URL` is the web-app URL ending i
 `TILE_ATTRIBUTION` set the base map; the file has a CARTO alternative in a comment. `ROUTER_URL` is the route
 server (the free OSRM server of FOSSGIS, `routing.openstreetmap.de`, with a bike and a foot profile).
 
-### Change the team code
+### Codes
 
-In Apps Script: Project Settings (gear) → Script properties → edit `TEAM_CODE`. Volunteers then get
-"That team code is not right" and can type the new one under ☰.
+Each campaign row in the Campaigns tab has an `admin_code` and a `volunteer_code` (case-sensitive; easiest
+with lowercase letters and digits). Share the volunteer code with the team, the admin code only with
+organisers. To change one, edit it in the sheet: phones with the old code get "That code is not right" and
+can type the new one under ☰. A campaign whose `active` is not TRUE refuses its codes ("This campaign is
+closed"). Admins can do more in the app (training the stars, Part 3 of round 5).
 
 ## A new campaign
 
@@ -172,7 +177,7 @@ event's preset in Filters; a volunteer can still tick them, and they then count 
   and the place can appear twice. Delete the copy in Places.
 - **Map tiles** come from openstreetmap.org, which is fine for a handful of volunteers under the OSM tile usage
   policy. Tiles you've viewed are kept for offline use (about 50 MB at most).
-- **The team code** is a shared password, not real accounts: if it leaks, change it.
+- **The codes** are shared passwords, not real accounts: if one leaks, change it in the Campaigns tab.
 
 ## Tests
 

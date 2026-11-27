@@ -81,12 +81,17 @@ Places of type `boards` are city poster boards that the city cleans on a schedul
 Apps Script web app bound to the sheet. Read the header comment of `Code.gs`.
 
 - `GET ?action=bootstrap&code=…[&campaign=…]` → `{campaigns, campaign_id, cities, types, places, results, serverTime}`
-- `GET ?action=results&code=…&campaign=…&since=ISO` → `{results, serverTime}` (polling)
+- Every call carries a `code`. Campaigns has `admin_code` and `volunteer_code` per campaign: the code
+  decides the campaign (writes always land in it, whatever `campaign_id` the phone sends) and the role
+  (`admin` / `volunteer`). Errors: `wrong code`, `campaign closed` (the campaign is not active).
+- `GET ?action=bootstrap&code=…` → `{campaign_id, role, names, campaigns: [the campaign, without codes], cities, types, places, results, serverTime}`;
+  `names` = first names already in Results (`by`) and Places (`added_by`), without "Claude …".
+- `GET ?action=results&code=…&since=ISO` → `{results, serverTime}` (polling)
 - `POST` body (JSON, **sent as `Content-Type: text/plain`** to avoid a CORS preflight):
   - `{code, name, action:"result", campaign_id, place_id, cycle, status?, posters?, note?}` – upsert; omitted fields keep their value
   - `{code, name, action:"addPlace", campaign_id, city, place_name, type, tags, importance, access, posters, lat, lon, address?, notes?, location_source:"gps"|"tap"}`
 - Errors come back as `{ok:false, error}` with HTTP 200 (Apps Script can't set status codes).
-- The web-app URL is public (it's in the site's code). The **team code** protects writes and reads.
+- The web-app URL is public (it's in the site's code). The **codes** protect writes and reads.
 
 Don't change the backend's contract without updating `Code.gs` too; Michiel must redeploy it by hand
 (Deploy > Manage deployments > edit > new version) after any change.
@@ -111,13 +116,13 @@ Don't change the backend's contract without updating `Code.gs` too; Michiel must
 
 ### 4.2 First run (onboarding, one screen)
 
-1. First name (stored as `by` on every write).
-2. Team code (checked with a bootstrap call; wrong code → clear message).
+1. Code (checked with a bootstrap call; wrong code → clear message). It decides the campaign and the role.
+2. Name: picked from the names the team already uses, or "Someone else…" and typed (stored as `by`).
 3. Home (optional): "Use my current location" or "Tap on the map". Stored **only on the phone**
    (localStorage). Never sent to the backend, never in the repo. Used as default start/end.
-4. Campaign: if more than one campaign is active, pick one (remember it).
 
-Settings (name, code, home, campaign) are reachable later from a small menu.
+Settings (code, name, home) are reachable later from a small menu. (An older backend without codes per
+campaign: a plain name box and a campaign picker, as before.)
 
 ### 4.3 Main screen (phone layout)
 

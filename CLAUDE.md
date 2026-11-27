@@ -23,7 +23,7 @@ docs/SPEC.md                         spec
 - Plain JavaScript modules, no framework, no bundler, no npm runtime dependencies.
 - The owner codes in Python and reads JS: **comment the why, explain in simple terms**, keep functions short.
 - Phone first: test layouts at 375×812 before desktop. Tap targets ≥ 44 px. Daylight contrast.
-- Never commit secrets or personal data. The team code and the user's home live only in the phone's
+- Never commit secrets or personal data. The campaign codes and the user's home live only in the sheet / the phone's
   localStorage. `config.js` holds only public settings.
 - The backend contract is in `docs/SPEC.md` §3. If you change `backend/Code.gs`, say so clearly:
   the owner must redeploy it in Apps Script by hand.
