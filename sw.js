@@ -33,8 +33,8 @@ self.addEventListener("fetch", e => {
   const req = e.request, url = new URL(req.url);
   if (req.method !== "GET" || url.pathname.endsWith("/exec")) return; // backend calls (also the local mock): network only
   if (url.origin === location.origin) return e.respondWith(staleWhileRevalidate(req));
-  // map tiles: OSM's tile.openstreetmap.org, or CARTO's basemaps.cartocdn.com (the alternative in config.js)
-  if (req.destination === "image" && /(^|\.)tile\.|basemaps\./.test(url.hostname)) return e.respondWith(tile(req));
+  // map tiles: hosts with "tile" in the name (tile.openstreetmap.org, …) or CARTO's basemaps.cartocdn.com
+  if (req.destination === "image" && /tile|basemaps/.test(url.hostname)) return e.respondWith(tile(req));
   // everything else (the backend, the route server, Google Maps links) goes straight to the network
 });
 

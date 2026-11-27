@@ -102,3 +102,10 @@ test("learned star sets: none yet → the rule; the event's default; the campaig
   tabs.Scores.push([C, "T06", "0.5", "swiped", "bt", "4", "2026-11-28"]);
   assert.equal(get({ action: "bootstrap", code: "secret" }).set.set_id, C);
 });
+
+test("writes: a blank place_id is never 'known', even with an empty row in Places", () => {
+  tabs.Places.push(tabs.Places[0].map(() => "")); // a stray empty row, as people leave in sheets
+  assert.equal(post({ code: "secret", name: "Test", action: "result", place_id: "", cycle: "", status: "posted" }).error, "unknown place");
+  assert.equal(post({ code: A, name: "Ann", action: "override", stars: 2 }).error, "unknown place");
+  tabs.Places.pop();
+});

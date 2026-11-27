@@ -148,10 +148,11 @@ export function openTrain(ctx) {
   let swiped = 0;
   $("train-pair").onclick = e => {
     if (Date.now() - swiped < 400) return;
-    const q = e.target.closest("[data-unknown]");
-    if (q) return answer(`unknown_${q.dataset.unknown}`);
-    const c = e.target.closest(".tcard");
-    if (c) answer(c.dataset.side);
+    const q = e.target.closest("[data-unknown]"), c = e.target.closest(".tcard");
+    if (q) answer(`unknown_${q.dataset.unknown}`); else if (c) answer(c.dataset.side); else return;
+    // With the keyboard (a click with detail 0), keep the focus on the same button of the new pair, so
+    // Enter / Space can go on without Tab-ing back in.
+    if (e.detail === 0) $("train-pair").querySelector(`.tcard[data-side="${(q || c).dataset.unknown || c.dataset.side}"] ${q ? ".tq" : ".tpick"}`)?.focus();
   };
   // Swipe: towards the better place (left = the left one, right = the right one).
   $("train-pair").onpointerdown = e => { prev = { x: e.clientX, y: e.clientY }; };

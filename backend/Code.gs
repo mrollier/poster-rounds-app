@@ -260,7 +260,7 @@ function sheet_(name) {
 function placeIds_() {
   const sh = sheet_(TABS.places), head = sh.getRange(1, 1, 1, sh.getLastColumn()).getDisplayValues()[0];
   const col = head.indexOf('place_id') + 1, n = sh.getLastRow() - 1;
-  return n > 0 ? sh.getRange(2, col, n, 1).getDisplayValues().map(r => r[0]) : [];
+  return n > 0 ? sh.getRange(2, col, n, 1).getDisplayValues().map(r => r[0]).filter(id => id !== '') : []; // (an empty row is no place)
 }
 
 /** A tab as a list of objects keyed by the header row. Display values, so dates and numbers stay as typed. */
