@@ -17,6 +17,10 @@ const PORT = Number(process.env.PORT) || 8787; // 8787–8799: config.js then us
 const tabs = Object.fromEntries(["Places", "Campaigns", "Results", "Cities", "Types"].map(t =>
   [t, parseCSV(fs.readFileSync(path.join(DATA, t.toLowerCase() + ".csv"), "utf8"))]));
 tabs.Log = [["at", "campaign_id", "place_id", "cycle", "action", "status", "posters", "note", "by"]];
+tabs.Swipes = [["swipe_id", "at", "by", "campaign_id", "deck_version", "round", "left_id", "right_id", "outcome", "undo_of"]];
+tabs.Overrides = [["campaign_id", "place_id", "stars", "by", "at"]];
+tabs.Scores = [["set_id", "place_id", "score", "source", "rater", "n", "updated_at"]];
+tabs.Sets = [["set_id", "event", "t3", "t2", "t1", "made_by", "made_at", "note"]];
 const sheet = name => tabs[name] && {
   getDataRange: () => ({ getDisplayValues: () => tabs[name].map(r => r.map(String)) }),
   getLastColumn: () => tabs[name][0].length,

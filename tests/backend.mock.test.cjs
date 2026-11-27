@@ -5,7 +5,11 @@ const parseCSV = f => { const lines = fs.readFileSync(f, 'utf8').trim().split(/\
   for (const l of lines) { const r = []; let cur = '', q = false; for (const ch of l) { if (ch === '"') q = !q; else if (ch === ',' && !q) { r.push(cur); cur = ''; } else cur += ch; } r.push(cur); rows.push(r); } return rows; };
 const D = path.join(__dirname, '..', 'data') + '/';
 const tabs = { Places: parseCSV(D + 'places.csv'), Campaigns: parseCSV(D + 'campaigns.csv'), Results: parseCSV(D + 'results.csv'),
-  Cities: parseCSV(D + 'cities.csv'), Types: parseCSV(D + 'types.csv'), Log: [['at','campaign_id','place_id','cycle','action','status','posters','note','by']] };
+  Cities: parseCSV(D + 'cities.csv'), Types: parseCSV(D + 'types.csv'), Log: [['at','campaign_id','place_id','cycle','action','status','posters','note','by']],
+  Swipes: [['swipe_id','at','by','campaign_id','deck_version','round','left_id','right_id','outcome','undo_of']],
+  Overrides: [['campaign_id','place_id','stars','by','at']],
+  Scores: [['set_id','place_id','score','source','rater','n','updated_at']],
+  Sets: [['set_id','event','t3','t2','t1','made_by','made_at','note']] };
 const sheet = name => tabs[name] && {
   getDataRange: () => ({ getDisplayValues: () => tabs[name].map(r => r.map(String)) }),
   getLastColumn: () => tabs[name][0].length,
@@ -58,4 +62,31 @@ assert.strictEqual(get({ action: 'bootstrap', code: 'secret' }).places.length, 1
 r = post({ code: 'secret', name: 'Test', action: 'result', campaign_id: 'other', place_id: 'T07', cycle: '', status: 'posted', posters: 1 });
 assert.strictEqual(r.result.campaign_id, C);
 assert.ok(get({ action: 'results', code: 'secret', campaign: C, since: new Date(Date.now() - 60000).toISOString() }).results.some(x => x.place_id === 'T06'));
+// ---------- Part 3: swipes, overrides, learned star sets ----------
+const A = 'admin-secret';
+assert.strictEqual(post({ code: 'secret', name: 'Vol', action: 'swipe', left_id: 'T06', right_id: 'T07', outcome: 'left' }).error, 'admin only');
+r = post({ code: A, name: 'Ann', action: 'swipe', deck_version: 'v1', round: 1, left_id: 'T06', right_id: 'T07', outcome: 'left' });
+assert.ok(r.ok && r.swipe_id, JSON.stringify(r));
+const sw = tabs.Swipes[tabs.Swipes.length - 1], sh = tabs.Swipes[0];
+assert.strictEqual(sw[sh.indexOf('campaign_id')], C); assert.strictEqual(sw[sh.indexOf('by')], 'Ann'); assert.strictEqual(sw[sh.indexOf('outcome')], 'left');
+assert.strictEqual(post({ code: A, name: 'Ann', action: 'swipe', left_id: 'T06', right_id: 'T07', outcome: 'maybe' }).error, 'bad outcome');
+assert.strictEqual(post({ code: A, name: 'Ann', action: 'swipe', left_id: 'T06', right_id: 'NOPE', outcome: 'left' }).error, 'unknown place');
+assert.ok(post({ code: A, name: 'Ann', action: 'swipe', left_id: 'T06', right_id: 'T07', outcome: 'undo', undo_of: r.swipe_id }).ok);
+assert.strictEqual(post({ code: 'secret', name: 'Vol', action: 'override', place_id: 'T06', stars: 3 }).error, 'admin only');
+assert.ok(post({ code: A, name: 'Ann', action: 'override', place_id: 'T06', stars: 3 }).ok);
+assert.ok(post({ code: A, name: 'Ann', action: 'override', place_id: 'T06', stars: 1 }).ok);
+assert.ok(post({ code: A, name: 'Ann', action: 'override', place_id: 'T07', stars: 2 }).ok);
+assert.ok(post({ code: A, name: 'Ann', action: 'override', place_id: 'T07', stars: '' }).ok); // cleared
+assert.strictEqual(post({ code: A, name: 'Ann', action: 'override', place_id: 'T06', stars: 7 }).error, 'bad stars');
+let bootA = get({ action: 'bootstrap', code: A }), bootV = get({ action: 'bootstrap', code: 'secret' });
+assert.deepStrictEqual(bootA.overrides, { T06: 1 });                       // latest wins; a cleared one is gone
+assert.strictEqual(bootA.swipes.length, 2); assert.strictEqual(bootV.swipes, undefined); // only admins get swipes
+assert.strictEqual(bootV.set, null);                                        // no learned set yet: the rule applies
+tabs.Sets.push(['default:AI Safety', 'AI Safety', '2', '1', '0', 'Claude', '2026-11-27', '']);
+tabs.Scores.push(['default:AI Safety', 'T06', '2.5', 'predicted', 'claude', '0', '2026-11-27'], ['default:AI Safety', 'T07', '-1', 'swiped', 'bt', '5', '2026-11-27']);
+bootV = get({ action: 'bootstrap', code: 'secret' });
+assert.deepStrictEqual(bootV.set, { set_id: 'default:AI Safety', t3: 2, t2: 1, t1: 0, scores: { T06: 2.5, T07: -1 } });
+tabs.Sets.push([C, 'AI Safety', '3', '2', '1', 'Ann', '2026-11-28', 'trained for the lecture']);
+tabs.Scores.push([C, 'T06', '0.5', 'swiped', 'bt', '4', '2026-11-28']);
+assert.strictEqual(get({ action: 'bootstrap', code: 'secret' }).set.set_id, C);  // the campaign's own set wins
 console.log('backend mock tests passed; log rows:', tabs.Log.length - 1);

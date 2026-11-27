@@ -8,7 +8,13 @@
  *   - GET  ?action=results&code=...&since=ISO    -> only results changed after `since` (cheap polling).
  *   - POST {code, name, action:"result", ...}     -> save one result (posted / not possible / undo / note).
  *   - POST {code, name, action:"addPlace", ...}   -> add a new poster place found on the street.
- *   Every write is also appended to the Log tab (who, what, when).
+ *   - POST {code, name, action:"swipe", ...}      -> admins: one comparison of two places (Swipes tab).
+ *   - POST {code, name, action:"override", ...}   -> admins: set one place's stars for the campaign (Overrides).
+ *   Every result and new place is also appended to the Log tab (who, what, when).
+ *
+ * Learned stars: the Scores and Sets tabs hold a score per place for a "set" (a campaign_id, or
+ * "default:<event type>"), and the score lines for 3/2/1 stars. They are filled from the swipes by a
+ * developer (tools/fit-set.mjs); the app turns scores into stars. See README "How the stars are made".
  *
  * Codes: each campaign (row in Campaigns) has an admin_code and a volunteer_code. A code says which
  * campaign you work on and what you may do; every write lands in that campaign. Codes are never sent
@@ -18,7 +24,9 @@
  * The app POSTs with Content-Type text/plain, which avoids a CORS preflight (Apps Script can't answer one).
  */
 
-const TABS = { places: 'Places', campaigns: 'Campaigns', results: 'Results', cities: 'Cities', types: 'Types', log: 'Log' };
+const TABS = { places: 'Places', campaigns: 'Campaigns', results: 'Results', cities: 'Cities', types: 'Types', log: 'Log',
+  swipes: 'Swipes', overrides: 'Overrides', scores: 'Scores', sets: 'Sets' };
+const OUTCOMES = ['left', 'right', 'draw', 'unknown_left', 'unknown_right', 'undo'];
 const STATUSES = ['posted', 'nope', 'refused', 'full', 'closed', 'later', ''];
 const MAX_BODY = 5000; // bytes; anything bigger is not a legitimate request
 
@@ -49,6 +57,10 @@ function doPost(e) {
     try {
       if (b.action === 'result') return saveResult_(b, name);
       if (b.action === 'addPlace') return addPlace_(b, name);
+      if (b.action === 'swipe' || b.action === 'override') {
+        if (who.role !== 'admin') throw new Error('admin only');
+        return b.action === 'swipe' ? saveSwipe_(b, name) : saveOverride_(b, name);
+      }
       throw new Error('unknown action');
     } finally {
       lock.releaseLock();
@@ -71,7 +83,31 @@ function bootstrap_(who) {
     types: rows_(TABS.types),
     places: rows_(TABS.places).filter(p => isTrue_(p.active) && String(p.city).trim().toLowerCase() === city),
     results: resultsFor_(campaign.campaign_id),
+    set: starSet_(campaign),
+    overrides: overrides_(campaign.campaign_id),
+    // Admins rebuild their swipe schedule from their own earlier swipes (the app keeps those with their name).
+    swipes: who.role === 'admin' ? optionalRows_(TABS.swipes).filter(r => r.campaign_id === campaign.campaign_id) : undefined,
   };
+}
+
+/** The learned star set for this campaign: its own (set_id = campaign_id), else the default for its kind
+ *  of event, else null (the app then uses the type rule). Scores and the 3/2/1-star lines as numbers. */
+function starSet_(campaign) {
+  const sets = optionalRows_(TABS.sets);
+  const set = sets.find(x => x.set_id === campaign.campaign_id) || sets.find(x => x.set_id === 'default:' + campaign.event_type);
+  if (!set) return null;
+  const scores = {};
+  optionalRows_(TABS.scores).filter(x => x.set_id === set.set_id).forEach(x => { scores[x.place_id] = Number(x.score); });
+  return { set_id: set.set_id, t3: Number(set.t3), t2: Number(set.t2), t1: Number(set.t1), scores: scores };
+}
+
+/** {place_id: stars} set by admins for this campaign; the latest row per place wins, an empty one clears it. */
+function overrides_(campaignId) {
+  const out = {};
+  optionalRows_(TABS.overrides).filter(x => x.campaign_id === campaignId).forEach(x => {
+    if (x.stars === '') delete out[x.place_id]; else out[x.place_id] = Number(x.stars);
+  });
+  return out;
 }
 
 /** First names already used in the sheet (results and added places), for the name list on the phone. */
@@ -145,7 +181,41 @@ function addPlace_(b, name) {
   return { ok: true, place: rec };
 }
 
+/** One swipe: which of two places is better for promoting this campaign's event. Append only; an undo is
+ *  a new row pointing at the swipe it takes back. */
+function saveSwipe_(b, name) {
+  if (OUTCOMES.indexOf(b.outcome) < 0) throw new Error('bad outcome');
+  const ids = rows_(TABS.places).map(p => p.place_id);
+  if (ids.indexOf(b.left_id) < 0 || ids.indexOf(b.right_id) < 0) throw new Error('unknown place');
+  const now = new Date();
+  const rec = { swipe_id: 'S-' + now.getTime() + '-' + Math.random().toString(36).slice(2, 6), at: now.toISOString(), by: name,
+    campaign_id: b.campaign_id, deck_version: clean_(b.deck_version, 20), round: parseInt(b.round, 10) || '',
+    left_id: b.left_id, right_id: b.right_id, outcome: b.outcome, undo_of: clean_(b.undo_of, 40) };
+  appendTo_(TABS.swipes, rec);
+  return { ok: true, swipe_id: rec.swipe_id };
+}
+
+/** An admin sets one place's stars for this campaign (0–3), or clears it (""). */
+function saveOverride_(b, name) {
+  if (!rows_(TABS.places).some(p => p.place_id === b.place_id)) throw new Error('unknown place');
+  const stars = b.stars === '' ? '' : Number(b.stars);
+  if (stars !== '' && [0, 1, 2, 3].indexOf(stars) < 0) throw new Error('bad stars');
+  appendTo_(TABS.overrides, { campaign_id: b.campaign_id, place_id: b.place_id, stars: stars, by: name, at: new Date().toISOString() });
+  return { ok: true };
+}
+
 // ---------- helpers ----------
+
+/** Append a record to a tab in the tab's own column order. */
+function appendTo_(tab, rec) {
+  const sh = sheet_(tab), head = sh.getRange(1, 1, 1, sh.getLastColumn()).getDisplayValues()[0];
+  sh.appendRow(head.map(k => rec[k] !== undefined ? rec[k] : ''));
+}
+
+/** Like rows_, but a tab that doesn't exist (yet) is simply empty. */
+function optionalRows_(name) {
+  return SpreadsheetApp.getActiveSpreadsheet().getSheetByName(name) ? rows_(name) : [];
+}
 
 function handle_(fn) {
   let out;
