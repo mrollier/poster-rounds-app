@@ -7,39 +7,11 @@
 import http from "node:http";
 import fs from "node:fs";
 import path from "node:path";
-import vm from "node:vm";
-import { parseCSV, DATA } from "./csv.js";
+import { fakeBackend } from "./fake-sheet.js";
 
 const ROOT = path.join(import.meta.dirname, "..");
 const PORT = Number(process.env.PORT) || 8787; // 8787–8799: config.js then uses this mock
-
-// Fake Google Sheet: each tab is an array of rows (header first), same shape getDisplayValues() returns.
-const tabs = Object.fromEntries(["Places", "Campaigns", "Results", "Cities", "Types"].map(t =>
-  [t, parseCSV(fs.readFileSync(path.join(DATA, t.toLowerCase() + ".csv"), "utf8"))]));
-tabs.Log = [["at", "campaign_id", "place_id", "cycle", "action", "status", "posters", "note", "by"]];
-tabs.Swipes = [["swipe_id", "at", "by", "campaign_id", "deck_version", "round", "left_id", "right_id", "outcome", "undo_of"]];
-tabs.Overrides = [["campaign_id", "place_id", "stars", "by", "at"]];
-tabs.Scores = [["set_id", "place_id", "score", "source", "rater", "n", "updated_at"]];
-tabs.Sets = [["set_id", "event", "t3", "t2", "t1", "made_by", "made_at", "note"]];
-const sheet = name => tabs[name] && {
-  getDataRange: () => ({ getDisplayValues: () => tabs[name].map(r => r.map(String)) }),
-  getLastColumn: () => tabs[name][0].length,
-  getRange: (r, c, nr, nc) => ({
-    getDisplayValues: () => tabs[name].slice(r - 1, r - 1 + nr).map(x => x.slice(c - 1, c - 1 + nc).map(String)),
-    setValues: v => { tabs[name][r - 1] = v[0].map(String); },
-  }),
-  appendRow: row => tabs[name].push(row.map(String)),
-};
-let reply = null;
-const ctx = {
-  SpreadsheetApp: { getActiveSpreadsheet: () => ({ getSheetByName: sheet }) },
-  LockService: { getScriptLock: () => ({ waitLock() {}, releaseLock() {} }) },
-  ContentService: { createTextOutput: s => ({ setMimeType() { reply = s; } }), MimeType: { JSON: "json" } },
-  Utilities: { formatDate: d => d.toISOString().slice(0, 16).replace(/[-:]/g, "").replace("T", "-") },
-  console,
-};
-vm.createContext(ctx);
-vm.runInContext(fs.readFileSync(path.join(ROOT, "backend", "Code.gs"), "utf8"), ctx);
+const backend = fakeBackend(); // the real Code.gs on an in-memory copy of the seed CSVs
 
 const TYPES = { ".html": "text/html", ".js": "text/javascript", ".css": "text/css", ".json": "application/json",
   ".png": "image/png", ".svg": "image/svg+xml", ".webmanifest": "application/manifest+json", ".csv": "text/csv" };
@@ -52,9 +24,8 @@ http.createServer((req, res) => {
     req.on("end", () => {
       // MOCK_DELAY=2000 node tests/mock-server.js → every backend call takes 2 s, like bad mobile data.
       setTimeout(() => {
-        if (req.method === "POST") ctx.doPost({ postData: { contents: body } });
-        else ctx.doGet({ parameter: Object.fromEntries(url.searchParams) });
-        res.writeHead(200, { "Content-Type": "application/json" }).end(reply);
+        const reply = req.method === "POST" ? backend.post(body) : backend.get(Object.fromEntries(url.searchParams));
+        res.writeHead(200, { "Content-Type": "application/json" }).end(JSON.stringify(reply));
       }, Number(process.env.MOCK_DELAY) || 0);
     });
     return;

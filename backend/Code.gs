@@ -30,7 +30,7 @@ const TABS = { places: 'Places', campaigns: 'Campaigns', results: 'Results', cit
   swipes: 'Swipes', overrides: 'Overrides', scores: 'Scores', sets: 'Sets' };
 const OUTCOMES = ['left', 'right', 'draw', 'both_high', 'both_mid', 'both_low', 'unknown_left', 'unknown_right', 'undo'];
 const STATUSES = ['posted', 'nope', 'refused', 'full', 'closed', 'later', ''];
-const MAX_BODY = 5000; // bytes; anything bigger is not a legitimate request
+const MAX_BODY = 5000; // characters; anything bigger is not a legitimate request
 
 // ---------- entry points ----------
 
@@ -40,7 +40,7 @@ function doGet(e) {
     if (p.action === 'ping') return { ok: true };
     const who = auth_(p.code);
     if (p.action === 'bootstrap') return bootstrap_(who);
-    if (p.action === 'results') return { results: resultsFor_(who.campaign.campaign_id, p.since), serverTime: new Date().toISOString() };
+    if (p.action === 'results') return { results: resultsFor_(rows_(TABS.results), who.campaign.campaign_id, p.since), serverTime: new Date().toISOString() };
     throw new Error('unknown action');
   });
 }
@@ -54,15 +54,21 @@ function doPost(e) {
     b.campaign_id = who.campaign.campaign_id; // whatever the phone sends, a write lands in the code's campaign
     const name = clean_(b.name, 40);
     if (!name) throw new Error('name missing');
+    if ((b.action === 'swipe' || b.action === 'override') && who.role !== 'admin') throw new Error('admin only');
+    // The places a write is about must exist. Checked before the lock: it only reads, so other phones
+    // needn't wait for it.
+    const ids = b.action === 'swipe' ? [b.left_id, b.right_id] : b.action === 'result' || b.action === 'override' ? [b.place_id] : [];
+    if (ids.length) {
+      const known = placeIds_();
+      if (ids.some(id => known.indexOf(String(id === undefined || id === null ? '' : id).trim()) < 0)) throw new Error('unknown place');
+    }
     const lock = LockService.getScriptLock();
     lock.waitLock(10000); // one write at a time, so two phones can't overwrite each other's row
     try {
       if (b.action === 'result') return saveResult_(b, name);
       if (b.action === 'addPlace') return addPlace_(b, name);
-      if (b.action === 'swipe' || b.action === 'override') {
-        if (who.role !== 'admin') throw new Error('admin only');
-        return b.action === 'swipe' ? saveSwipe_(b, name) : saveOverride_(b, name);
-      }
+      if (b.action === 'swipe') return saveSwipe_(b, name);
+      if (b.action === 'override') return saveOverride_(b, name);
       throw new Error('unknown action');
     } finally {
       lock.releaseLock();
@@ -75,16 +81,17 @@ function doPost(e) {
 function bootstrap_(who) {
   const campaign = who.campaign;
   const city = String(campaign.city).trim().toLowerCase(); // "Gent " or "gent" still match "Gent"
+  const places = rows_(TABS.places), results = rows_(TABS.results); // each tab read once
   return {
     serverTime: new Date().toISOString(),
     campaigns: [withoutCodes_(campaign)],
     campaign_id: campaign.campaign_id,
     role: who.role,
-    names: names_(),
+    names: names_(results, places),
     cities: rows_(TABS.cities),
     types: rows_(TABS.types),
-    places: rows_(TABS.places).filter(p => isTrue_(p.active) && String(p.city).trim().toLowerCase() === city),
-    results: resultsFor_(campaign.campaign_id),
+    places: places.filter(p => isTrue_(p.active) && String(p.city).trim().toLowerCase() === city),
+    results: resultsFor_(results, campaign.campaign_id),
     set: starSet_(campaign),
     overrides: overrides_(campaign.campaign_id),
     // Admins rebuild their swipe schedule from their own earlier swipes (the app keeps those with their name).
@@ -113,31 +120,30 @@ function overrides_(campaignId) {
 }
 
 /** First names already used in the sheet (results and added places), for the name list on the phone. */
-function names_() {
-  const all = rows_(TABS.results).map(r => r.by).concat(rows_(TABS.places).map(p => p.added_by));
+function names_(results, places) {
+  const all = results.map(r => r.by).concat(places.map(p => p.added_by));
   const seen = {};
   all.forEach(n => { n = String(n || '').trim(); if (n && !/^Claude/.test(n)) seen[n] = true; });
   return Object.keys(seen).sort();
 }
 
-function resultsFor_(campaignId, since) {
-  return rows_(TABS.results).filter(r => r.campaign_id === campaignId && (!since || r.at > since));
+function resultsFor_(results, campaignId, since) {
+  return results.filter(r => r.campaign_id === campaignId && (!since || r.at > since));
 }
 
 // ---------- writes ----------
 
 /** Upsert one result: the row for (campaign, place, cycle) is replaced; fields left out keep their value. */
 function saveResult_(b, name) {
-  const campaignId = b.campaign_id, placeId = clean_(b.place_id, 40), cycle = clean_(b.cycle, 10);
-  if (!rows_(TABS.places).some(p => p.place_id === placeId)) throw new Error('unknown place');
+  const campaignId = b.campaign_id, placeId = clean_(b.place_id, 40), cycle = clean_(b.cycle, 10); // (place checked in doPost)
   if (b.status !== undefined && STATUSES.indexOf(b.status) < 0) throw new Error('bad status');
   if (cycle && !/^\d{4}-\d{2}-\d{2}$/.test(cycle)) throw new Error('bad cycle');
 
   const sh = sheet_(TABS.results), data = sh.getDataRange().getDisplayValues(), head = data[0];
-  const col = k => head.indexOf(k);
+  const ci = head.indexOf('campaign_id'), pi = head.indexOf('place_id'), yi = head.indexOf('cycle');
   let rowIdx = -1;
   for (let i = 1; i < data.length; i++) {
-    if (data[i][col('campaign_id')] === campaignId && data[i][col('place_id')] === placeId && data[i][col('cycle')] === cycle) { rowIdx = i; break; }
+    if (data[i][ci] === campaignId && data[i][pi] === placeId && data[i][yi] === cycle) { rowIdx = i; break; }
   }
   const old = rowIdx > 0 ? Object.fromEntries(head.map((k, j) => [k, data[rowIdx][j]])) : {};
   // A result tapped while offline arrives late. If a teammate saved this stop after that tap, theirs is
@@ -179,30 +185,27 @@ function addPlace_(b, name) {
   };
   const sh = sheet_(TABS.places), head = sh.getRange(1, 1, 1, sh.getLastColumn()).getDisplayValues()[0];
   sh.appendRow(head.map(k => rec[k] !== undefined ? rec[k] : ''));
-  log_({ campaign_id: clean_(b.campaign_id, 80), place_id: id, cycle: '', status: '', posters: '', note: placeName, by: name }, 'addPlace');
+  log_({ campaign_id: b.campaign_id, place_id: id, cycle: '', status: '', posters: '', note: placeName, by: name }, 'addPlace');
   return { ok: true, place: rec };
 }
 
 /** One swipe: which of two places is better for promoting this campaign's event. Append only; an undo is
  *  a new row pointing at the swipe it takes back. */
 function saveSwipe_(b, name) {
-  if (OUTCOMES.indexOf(b.outcome) < 0) throw new Error('bad outcome');
-  const ids = rows_(TABS.places).map(p => p.place_id);
-  if (ids.indexOf(b.left_id) < 0 || ids.indexOf(b.right_id) < 0) throw new Error('unknown place');
+  if (OUTCOMES.indexOf(b.outcome) < 0) throw new Error('bad outcome'); // (places checked in doPost)
   const now = new Date();
   const rec = { swipe_id: 'S-' + now.getTime() + '-' + Math.random().toString(36).slice(2, 6), at: now.toISOString(), by: name,
     campaign_id: b.campaign_id, deck_version: clean_(b.deck_version, 20), round: parseInt(b.round, 10) || '',
-    left_id: b.left_id, right_id: b.right_id, outcome: b.outcome, undo_of: clean_(b.undo_of, 40) };
+    left_id: String(b.left_id).trim(), right_id: String(b.right_id).trim(), outcome: b.outcome, undo_of: clean_(b.undo_of, 40) };
   appendTo_(TABS.swipes, rec);
   return { ok: true, swipe_id: rec.swipe_id };
 }
 
 /** An admin sets one place's stars for this campaign (0–3), or clears it (""). */
-function saveOverride_(b, name) {
-  if (!rows_(TABS.places).some(p => p.place_id === b.place_id)) throw new Error('unknown place');
+function saveOverride_(b, name) { // (place checked in doPost)
   const stars = b.stars === '' ? '' : Number(b.stars);
   if (stars !== '' && [0, 1, 2, 3].indexOf(stars) < 0) throw new Error('bad stars');
-  appendTo_(TABS.overrides, { campaign_id: b.campaign_id, place_id: b.place_id, stars: stars, by: name, at: new Date().toISOString() });
+  appendTo_(TABS.overrides, { campaign_id: b.campaign_id, place_id: String(b.place_id).trim(), stars: stars, by: name, at: new Date().toISOString() });
   return { ok: true };
 }
 
@@ -253,6 +256,13 @@ function sheet_(name) {
   return sh;
 }
 
+/** Every place_id in the Places tab: just that column, so a check doesn't read the whole tab. */
+function placeIds_() {
+  const sh = sheet_(TABS.places), head = sh.getRange(1, 1, 1, sh.getLastColumn()).getDisplayValues()[0];
+  const col = head.indexOf('place_id') + 1, n = sh.getLastRow() - 1;
+  return n > 0 ? sh.getRange(2, col, n, 1).getDisplayValues().map(r => r[0]) : [];
+}
+
 /** A tab as a list of objects keyed by the header row. Display values, so dates and numbers stay as typed. */
 function rows_(name) {
   const data = sheet_(name).getDataRange().getDisplayValues();
@@ -260,9 +270,9 @@ function rows_(name) {
   return data.slice(1).filter(r => r.some(v => v !== '')).map(r => Object.fromEntries(head.map((k, j) => [k, r[j]])));
 }
 
+/** The Log tab: who did what, when (in the tab's own column order, like every other append). */
 function log_(rec, action) {
-  sheet_(TABS.log).appendRow([new Date().toISOString(), rec.campaign_id, rec.place_id, rec.cycle, action,
-    rec.status, rec.posters, rec.note, rec.by]);
+  appendTo_(TABS.log, Object.assign({}, rec, { at: new Date().toISOString(), action: action }));
 }
 
 /** Trim, cap the length, and neutralise a leading = + - @ so a value can never run as a spreadsheet formula. */
