@@ -1,6 +1,6 @@
 # Round 5 – zones that make sense, codes per campaign, stars learned from swipes
 
-Date: 2026-11-27. Status: design, waiting for the owner's approval.
+Date: 2026-11-27. Status: approved by the owner (with the changes below), 2026-11-27.
 Source: owner feedback on round 4 (tested on iPhone) plus five rounds of questions and three analyst
 reports (comparison model, generalising scores, critic). Marked **[my call]** = decided by Claude, open to
 correction; everything else was decided by the owner.
@@ -61,8 +61,8 @@ covers quick fixes.
    more work than the target is simply one big zone.
 5. **Name** = Statbel name of the sector holding most of the zone's stops ("Kouter", "Boekentoren",
    "Rekencentrum"); repeats get " 2". A one-stop zone keeps its stop's name. The OpenStreetMap
-   neighbourhood labels are no longer used for zones **[my call: `data/neighbourhoods-gent.json` then has no
-   use; its loading code goes, and the file is deleted only after asking the owner]**.
+   neighbourhood labels are no longer used for zones: `data/neighbourhoods-gent.json` and its loading code
+   are deleted (owner agreed).
 6. **Bike spot (P)** = the public bike rack nearest the middle of the zone's stops; no rack within 150 m →
    the middle point itself. The same for everyone; no longer depends on where you come from (`parkFor` and
    `view.zonePark` go). The walking loop starts and ends there.
@@ -128,7 +128,8 @@ set exists.
 - Two cards side by side; swipe left = left place better, right = right place better. Buttons:
   "About the same" (draw) and a "?" on each card ("don't know this place"). Undo the last swipe.
 - A card: big type icon, the venue's website icon where known, name, type, address, a tiny map with the
-  pin. A `website` column is added to Places by a one-off research pass (subagents) **[my call]**.
+  pin, and for every place a location line: the sector name and the nearest well-known place within
+  ~300 m ("Overpoort · 80 m from Campus Ufo"), so look-alike cards such as city boards can be told apart. A `website` column is added to Places by a one-off research pass (subagents) **[my call]**.
   Website icons are fetched only when the swipe screen is open.
 - Progress: "123 / 250", minimum comparisons per place, and a "settled" signal (see 3.4).
 - Works offline: swipes go through the existing outbox.
@@ -159,8 +160,9 @@ set exists.
      batches of ~30 mixed places, shuffled; two independent passes, averaged; a third pass where they differ
      by more than one anchor gap. Report the agreement between passes (Spearman ≥ 0.8, else sharpen the
      anchors).
-  4. City boards are not rated one by one (their cards look alike): board score = the boards' fitted level
-     + a small bonus for importance and nearness to a campus or the centre.
+  4. City boards are rated one by one like every other place (owner's decision). Their cards and Claude's
+     input give a clear sense of place: the street, the sector name, and the nearest well-known place
+     ("Overpoort board · 80 m from Campus Ufo").
   5. **Check:** on the 12 held-out places' real swipes, the new scores must predict the winner more often
      than today's rule. If not, keep today's rule and say so.
   6. Refit with all swipes; write the set to the sheet.
@@ -194,5 +196,6 @@ set live by ~4 Dec, leaving 5 days of posting. If the check in 3.6 fails, the le
 
 ## Open
 
-- Which places are clearly wrong for AI Safety today (≈ 10 names, with direction)? They go into the deck.
+- The owner has no list of clearly wrong places; the deck leans towards places where the current
+  importance is least certain instead, and the admin override handles wrong places found later.
 - Each part is its own set of commits; parts 2 and 3 each need one manual Apps Script redeploy.
