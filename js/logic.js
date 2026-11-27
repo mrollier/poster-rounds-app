@@ -1,5 +1,6 @@
 // Pure business rules: no DOM, no network, no localStorage. Everything here is unit-tested in tests/.
 import { hav } from "./geo.js";
+import { starsFromScore } from "./rank.js";
 
 // ---------- Importance stars and event types (spec §2.1) ----------
 
@@ -21,6 +22,26 @@ export function stars(place, weights) {
   return imp === 1 && fit > 1 ? fit - 1 : fit;
 }
 export const starText = n => "★".repeat(n) + "☆".repeat(3 - n);
+
+// The stars a place shows, in order of what wins:
+//   1. an admin's override for this campaign (overrides: {place_id: 0–3});
+//   2. a learned set (set: {t3, t2, t1, scores}): the place's score against the 3/2/1-star lines (see
+//      js/rank.js); a place without a score (added later) gets the average of similar places (fillScore);
+//   3. otherwise today's rule from the type's weight and the place's importance (stars above).
+export function placeStars(place, { set = null, overrides = {}, weights = {}, places = [] } = {}) {
+  if (overrides && overrides[place.place_id] !== undefined) return overrides[place.place_id];
+  if (set) return starsFromScore(set.scores[place.place_id] ?? fillScore(place, set, places), set);
+  return stars(place, weights);
+}
+
+// A score for a place the set doesn't know yet: the average score of places of the same type and
+// importance, else of the same type, else the 1★ line.
+export function fillScore(place, set, places) {
+  const avgOf = list => { const xs = list.map(p => set.scores[p.place_id]).filter(x => x !== undefined);
+    return xs.length ? xs.reduce((a, b) => a + b, 0) / xs.length : null; };
+  const sameType = places.filter(p => p.type === place.type);
+  return avgOf(sameType.filter(p => Math.round(+p.importance) === Math.round(+place.importance))) ?? avgOf(sameType) ?? set.t1;
+}
 
 // ---------- Board cleaning cycles (spec §2.2) ----------
 

@@ -22,6 +22,7 @@ export function mergeResults(map, rows) {
 export function withPending(map, items, myName) {
   const out = { ...map };
   for (const { body, at } of items) {
+    if (body.action && body.action !== "result") continue; // swipes, overrides and new places wait in the same outbox
     const key = resultKey(body), base = out[key] || { campaign_id: body.campaign_id, place_id: body.place_id,
       cycle: body.cycle || "", status: "", posters: 0, note: "" };
     const patch = Object.fromEntries(["status", "posters", "note"].filter(k => body[k] !== undefined).map(k => [k, body[k]]));

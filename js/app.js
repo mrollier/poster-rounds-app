@@ -4,7 +4,7 @@ import { initMap, showCity, drawPins, closePopup, setHome, setMe, setFollow, onU
   drawZones, zoneLabelsFromZoom, esc } from "./map.js";
 import { watchWhileVisible, restartWatching, lastPosition } from "./location.js";
 import { setup, toast, ask, $ } from "./ui.js";
-import { stars, eventTypes, eventWeights, cleanBoot, num, cycleStart, brusselsToday, cycleFor, resultKey, STATUS_LABEL, chunkLinks } from "./logic.js";
+import { placeStars, eventTypes, eventWeights, cleanBoot, num, cycleStart, brusselsToday, cycleFor, resultKey, STATUS_LABEL, chunkLinks } from "./logic.js";
 import { mergeResults, withPending, createQueue } from "./sync.js";
 import { dist, minutes } from "./geo.js";
 import { tripTime, orderStops, parkAt, ZONE_MINUTES } from "./routes.js";
@@ -39,12 +39,25 @@ const events = () => eventTypes(boot.types);
 const evMatch = e => events().find(x => x.trim().toLowerCase() === String(e ?? "").trim().toLowerCase());
 const currentEvent = () => [filters.event, campaign()?.event_type, events()[0]].map(evMatch).find(Boolean) || "";
 
+// The learned star set (from swipes, see README "How the stars are made"): only for the campaign's own
+// kind of event. Picking another kind in Filters uses the type rule for that kind instead.
+const learnedSet = () => (boot.set && same(currentEvent(), campaign()?.event_type) ? boot.set : null);
+// An admin's override (pending ones from the outbox included) wins over everything.
+function overrides() {
+  const out = { ...(boot.overrides || {}) };
+  for (const { body } of queue.items) {
+    if (body.action === "override") { if (body.stars === "") delete out[body.place_id]; else out[body.place_id] = body.stars; }
+  }
+  return out;
+}
+
 // All stops of this campaign with their stars, type and latest result (ours not yet sent included).
 function stops() {
   const w = eventWeights(boot.types, currentEvent()), types = Object.fromEntries(boot.types.map(t => [t.type, t]));
   const results = withPending(synced.map, queue.items, settings.name);
+  const how = { set: learnedSet(), overrides: overrides(), weights: w, places: boot.places };
   return boot.places
-    .map(place => ({ place, stars: stars(place, w), type: types[place.type] || { label: place.type, color: "#444" },
+    .map(place => ({ place, stars: placeStars(place, how), type: types[place.type] || { label: place.type, color: "#444" },
                      res: results[keyOf(place)] || null }))
     .filter(s => s.stars > 0);
 }
@@ -76,12 +89,13 @@ const filterKey = () => JSON.stringify([boot.campaign_id, currentEvent(), filter
 
 // Each kind of event comes with its preset of place types (weight above 0). Switching to another kind
 // (or a campaign with another default) ticks that preset again; within one kind, your own ticks stay.
+// With a learned set the stars already say which places matter, so every type is ticked.
 function syncPreset() {
-  const ev = currentEvent();
-  if (filters.skipFor === ev) return;
+  const ev = currentEvent(), key = learnedSet() ? `${ev}:learned` : ev;
+  if (filters.skipFor === key) return;
   const w = eventWeights(boot.types, ev);
-  filters.skip = ev ? boot.types.filter(t => !w[t.type]).map(t => t.type) : [];
-  filters.skipFor = ev;
+  filters.skip = ev && !learnedSet() ? boot.types.filter(t => !w[t.type]).map(t => t.type) : [];
+  filters.skipFor = key;
   saveView();
 }
 const distText = m => (m < 1000 ? `${Math.round(m / 10) * 10} m` : `${(m / 1000).toFixed(1)} km`);

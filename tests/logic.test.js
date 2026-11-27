@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { stars, eventTypes, eventWeights, starText, cycleStart, brusselsToday, isDone, cycleFor, gmapsUrl, cleanBoot } from "../js/logic.js";
+import { stars, placeStars, fillScore, eventTypes, eventWeights, starText, cycleStart, brusselsToday, isDone, cycleFor, gmapsUrl, cleanBoot } from "../js/logic.js";
 import { readTab } from "./csv.js";
 
 const places = readTab("places");
@@ -108,4 +108,26 @@ test("cleanBoot: fixes what the sheet gets wrong, leaves out what it can't", () 
   assert.deepEqual([boot.places[2].importance, boot.places[2].posters], [3, 1]);
   assert.equal(boot.types[1].color, "#444");
   assert.equal(skipped.length, 3); // c (no position), d (swapped: far away), the second a (duplicate)
+});
+
+test("placeStars: an override wins; then the learned set; else the type rule", () => {
+  const set = { t3: 2, t2: 1, t1: 0, scores: { a: 2.5, b: 0.5, c: -1 } };
+  const w = { sci: 3 }, p = (id, type = "sci", importance = "2") => ({ place_id: id, type, importance });
+  assert.equal(placeStars(p("a"), { set, weights: w }), 3);
+  assert.equal(placeStars(p("b"), { set, weights: w }), 1);
+  assert.equal(placeStars(p("c"), { set, weights: w }), 0);          // below the 1★ line: hidden
+  assert.equal(placeStars(p("a"), { set, overrides: { a: 1 }, weights: w }), 1);
+  assert.equal(placeStars(p("c"), { set, overrides: { c: 0 }, weights: w }), 0);
+  assert.equal(placeStars(p("a"), { weights: w }), 3);              // no set: today's rule
+  assert.equal(placeStars(p("a"), { overrides: { a: 2 }, weights: w }), 2);
+});
+
+test("fillScore: a place without a score gets the average of its type and importance, else of its type", () => {
+  const set = { t3: 2, t2: 1, t1: 0, scores: { a: 2, b: 1, c: -1 } };
+  const places = [{ place_id: "a", type: "sci", importance: "2" }, { place_id: "b", type: "sci", importance: "2" },
+                  { place_id: "c", type: "sci", importance: "1" }];
+  assert.equal(fillScore({ place_id: "new", type: "sci", importance: "2" }, set, places), 1.5);
+  assert.equal(fillScore({ place_id: "new", type: "sci", importance: "3" }, set, places), 2 / 3);
+  assert.equal(fillScore({ place_id: "new", type: "cafes", importance: "3" }, set, places), 0); // nothing similar: the 1★ line
+  assert.equal(placeStars({ place_id: "new", type: "sci", importance: "2" }, { set, places }), 2);
 });
