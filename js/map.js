@@ -25,6 +25,14 @@ export function showCity(city) {
   if (city) map.setView([+city.centre_lat, +city.centre_lon], +city.zoom || 13);
 }
 
+// Room around an opened pop-up: below the top bar, and above the panel at the bottom (on a phone the panel
+// covers the lower part of the map), so all its buttons can be tapped.
+function popupPadding() {
+  const sheet = document.getElementById("sheet").getBoundingClientRect(), side = sheet.width < window.innerWidth;
+  const top = document.querySelector(".bar").getBoundingClientRect().bottom + 12;
+  return { autoPanPaddingTopLeft: [12, top], autoPanPaddingBottomRight: [12, side ? 12 : window.innerHeight - sheet.top + 60] };
+}
+
 // A round coloured pin; `text` goes inside (priority now, stop number later).
 const pinIcon = (color, text, cls = "") => L.divIcon({
   className: "", iconSize: [30, 30], iconAnchor: [15, 15], popupAnchor: [0, -12],
@@ -43,7 +51,7 @@ export function drawPins(pins) {
     // keyboard: false keeps 200 pins out of the Tab order; the list has every stop with the same buttons.
     // The autopan padding keeps an opened popup clear of the top bar and the zoom buttons.
     L.marker([p.lat, p.lon], { icon: pinIcon(p.color, p.label, p.cls), title: p.title, zIndexOffset: p.z || 0, keyboard: false })
-      .bindPopup(p.popup, { minWidth: 220, autoPanPaddingTopLeft: [12, 70], autoPanPaddingBottomRight: [60, 12] }).addTo(placesLayer);
+      .bindPopup(p.popup, { minWidth: 220, ...popupPadding() }).addTo(placesLayer);
   }
 }
 

@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { fitBT, chooseDeck, swissRound, quality, sharesToThresholds, starsFromScore, spearman, swipesToComparisons, placeBetween } from "../js/rank.js";
+import { fitBT, chooseDeck, swissRound, quality, sharesToThresholds, starsFromScore, spearman, swipesToComparisons, placeBetween, historyFromRows, nextPair } from "../js/rank.js";
 import { readTab } from "./csv.js";
 
 // A fixed "random" generator (same every run), so the tests can't flake.
@@ -84,4 +84,28 @@ test("placeBetween: a place Claude puts between two anchors gets a score between
   assert.equal(placeBetween(anchors, 1, "closer_bottom"), -0.5);
   assert.equal(placeBetween(anchors, -1, "middle"), 4);   // above the best anchor
   assert.equal(placeBetween(anchors, 2, "middle"), -2);   // below the worst
+});
+
+test("historyFromRows: a new phone rebuilds an admin's swipes, with undos applied like the fit does", () => {
+  const row = (by, l, r, outcome, round = 1) => ({ by, left_id: l, right_id: r, outcome, round: String(round), deck_version: "v1", undo_of: "" });
+  const rows = [row("Ann", "a", "b", "left"), row("Ann", "a", "b", "undo"), row("Ann", "c", "d", "right", 2), row("Bo", "a", "b", "left")];
+  assert.deepEqual(historyFromRows(rows, "Ann", "v1"), [{ left: "c", right: "d", outcome: "right", round: 2 }]);
+});
+
+test("nextPair: a '?' doesn't restart the schedule; rounds keep going", () => {
+  const deck = Array.from({ length: 10 }, (_, i) => `p${i}`), h = [];
+  for (let k = 0; k < 24; k++) {
+    const p = nextPair(deck, h, 42);
+    if (!p) break;
+    h.push({ left: p.left, right: p.right, outcome: k % 7 === 2 ? "unknown_left" : "left", round: p.round }); // a "?" now and then
+  }
+  // Rounds only go forward: a "?" in round 3 must not send the schedule back to round 1.
+  h.forEach((x, i) => assert.ok(i === 0 || x.round >= h[i - 1].round, `swipe ${i} went back from round ${h[i - 1]?.round} to ${x.round}`));
+  assert.ok(Math.max(...h.map(x => x.round)) >= 3, `stuck in round ${Math.max(...h.map(x => x.round))}`);
+  const dupes = new Set(h.map(x => [x.left, x.right].sort().join("|")));
+  assert.ok(dupes.size >= h.length - 2, "pairs repeat too often");
+});
+
+test("spearman: no spread to compare means 'not settled' (0), not 1", () => {
+  assert.equal(spearman([0, 0, 0], [3, 2, 1]), 0);
 });

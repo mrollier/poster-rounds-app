@@ -37,7 +37,7 @@ async function call(url, options) {
     if (body.error === "unknown place") throw new BackendError("This place is no longer in the list: the organiser removed it from the sheet.");
     // Our own mistakes in a request (bad/unknown …, … missing) will never succeed; anything else (a busy
     // sheet, a Google hiccup) may work next time, so it counts as "try again later".
-    const permanent = /^(bad|unknown|request too large)|missing$/.test(body.error);
+    const permanent = /^(bad|unknown|request too large|admin only)|missing$/.test(body.error);
     throw new BackendError(FRIENDLY[body.error] || `Server error: ${body.error}`,
       { stop: !!FRIENDLY[body.error], offline: !FRIENDLY[body.error] && !permanent });
   }

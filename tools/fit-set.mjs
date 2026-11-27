@@ -21,7 +21,9 @@ const [cmd, ...args] = process.argv.slice(2);
 
 if (cmd === "anchors") {
   const [swipesFile, placesFile] = args;
-  const comps = swipesToComparisons(table(swipesFile)), places = table(placesFile).filter(active);
+  const places = table(placesFile).filter(active), live = new Set(places.map(p => p.place_id));
+  // Only swipes between places that are still active (a place removed from the sheet can't be an anchor).
+  const comps = swipesToComparisons(table(swipesFile)).filter(c => live.has(c.a) && live.has(c.b));
   const swiped = [...new Set(comps.flatMap(c => [c.a, c.b]))];
   const all = fitBT(swiped, comps), ranked = [...swiped].sort((x, y) => all.get(y).score - all.get(x).score);
   // 12 held-back places, spread over the whole range (every n-th), for an honest check afterwards.
@@ -38,7 +40,8 @@ if (cmd === "anchors") {
 } else if (cmd === "build") {
   const [workFile, placementsFile, placesFile, typesFile, setId, event] = args;
   const work = JSON.parse(fs.readFileSync(workFile, "utf8")), places = table(placesFile).filter(active);
-  const comps = swipesToComparisons(table(args[6] || "swipes.csv"));
+  const live = new Set(places.map(p => p.place_id));
+  const comps = swipesToComparisons(table(args[6] || "swipes.csv")).filter(c => live.has(c.a) && live.has(c.b));
   // Claude's placements → scores (passes averaged).
   const placed = {};
   for (const r of table(placementsFile)) (placed[r.place_id] ||= []).push(placeBetween(work.anchors, +r.k, r.pos));
@@ -62,7 +65,7 @@ if (cmd === "anchors") {
   const t = sharesToThresholds(rows.map(r => +r[2]));
   const count = [0, 0, 0, 0]; rows.forEach(r => count[starsFromScore(+r[2], t)]++);
   fs.writeFileSync("scores.csv", ["set_id,place_id,score,source,rater,n,updated_at", ...rows.map(r => r.join(","))].join("\n") + "\n");
-  fs.writeFileSync("set.csv", `set_id,event,t3,t2,t1,made_by,made_at,note\n${setId},${event},${t.t3.toFixed(3)},${t.t2.toFixed(3)},${t.t1.toFixed(3)},Claude,${now},"${comps.length} swipes"\n`);
+  fs.writeFileSync("set.csv", `set_id,event,t3,t2,t1,made_by,made_at,note\n"${setId}","${event}",${t.t3.toFixed(3)},${t.t2.toFixed(3)},${t.t1.toFixed(3)},Claude,${now},"${comps.length} swipes"\n`);
   console.log(`${rows.length} scores. Stars 3/2/1/0: ${count[3]}/${count[2]}/${count[1]}/${count[0]}. Wrote scores.csv and set.csv.`);
 } else {
   console.log("usage: see the top of tools/fit-set.mjs");

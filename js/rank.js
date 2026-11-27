@@ -108,7 +108,7 @@ export function spearman(xs, ys) {
   const a = rank(xs), b = rank(ys), n = a.length, ma = (n - 1) / 2;
   let num = 0, da = 0, db = 0;
   for (let i = 0; i < n; i++) { num += (a[i] - ma) * (b[i] - ma); da += (a[i] - ma) ** 2; db += (b[i] - ma) ** 2; }
-  return da && db ? num / Math.sqrt(da * db) : 1;
+  return da && db ? num / Math.sqrt(da * db) : 0; // nothing to compare (all equal): not settled
 }
 
 // For the screen: the fewest comparisons any deck place has had, the share of "about the same", and how
@@ -137,7 +137,9 @@ export const starsFromScore = (score, set) => (score >= set.t3 ? 3 : score >= se
 
 // Rows from the Swipes tab, in the order they were saved. An "undo" takes back that admin's latest
 // swipe of the same pair; "?" (unknown_left / unknown_right) says nothing about which is better.
-export function swipesToComparisons(rows) {
+// The same rule everywhere (the fit tool and a phone rebuilding its schedule): an undo row takes back that
+// admin's latest swipe of the same pair.
+function applyUndos(rows) {
   const kept = [];
   for (const r of rows) {
     if (r.outcome !== "undo") { kept.push(r); continue; }
@@ -146,9 +148,43 @@ export function swipesToComparisons(rows) {
       if (k.by === r.by && k.left_id === r.left_id && k.right_id === r.right_id) { kept.splice(i, 1); break; }
     }
   }
-  const Y = { left: 1, right: 0, draw: 0.5 };
-  return kept.filter(r => r.outcome in Y).map(r => ({ a: r.left_id, b: r.right_id, y: Y[r.outcome] }));
+  return kept;
 }
+const Y = { left: 1, right: 0, draw: 0.5 };
+export function swipesToComparisons(rows) {
+  return applyUndos(rows).filter(r => r.outcome in Y).map(r => ({ a: r.left_id, b: r.right_id, y: Y[r.outcome] }));
+}
+
+// ---------- One admin's schedule (js/train.js) ----------
+
+// An admin's history from the Swipes tab (a new phone): [{left, right, outcome, round}].
+export function historyFromRows(rows, name, deckVersion) {
+  return applyUndos(rows.filter(r => r.by === name && r.deck_version === deckVersion))
+    .map(r => ({ left: r.left_id, right: r.right_id, outcome: r.outcome, round: +r.round || 1 }));
+}
+
+// Places an admin said they don't know ("?"), in these history entries.
+const unknownIn = h => new Set(h.flatMap(x => (x.outcome === "unknown_left" ? [x.left] : x.outcome === "unknown_right" ? [x.right] : [])));
+const comparisonsIn = h => h.filter(x => x.outcome in Y).map(x => ({ a: x.left, b: x.right, y: Y[x.outcome] }));
+
+// The next pair to show: the first pair of the current Swiss round that hasn't been swiped yet; a finished
+// round starts the next one. Each round is rebuilt exactly as it was first made: from the swipes and the
+// "?" of the rounds before it only (so a "?" now doesn't reshuffle a round that's half done).
+// Returns {left, right, round}, or null when too few places are left.
+export function nextPair(deck, h, seed) {
+  const gone = unknownIn(h);
+  for (let round = 1; round < 99; round++) {
+    const before = h.filter(x => x.round < round), now = h.filter(x => x.round === round);
+    const known = deck.filter(id => !unknownIn(before).has(id));
+    const pairs = swissRound(known, before.map(x => ({ a: x.left, b: x.right })), fitBT(known, comparisonsIn(before)), seed, round);
+    const done = new Set(now.map(x => [x.left, x.right].sort().join("|")));
+    const next = pairs.find(p => !done.has([p.left, p.right].sort().join("|")) && !gone.has(p.left) && !gone.has(p.right));
+    if (next) return { ...next, round };
+    if (pairs.length < 2) return null;
+  }
+  return null;
+}
+export { comparisonsIn, unknownIn };
 
 // Claude rates a place by putting it between two anchor places (anchors: fitted places, best first):
 // k = the anchor just above it (−1 = above the best), pos = closer_top / middle / closer_bottom.

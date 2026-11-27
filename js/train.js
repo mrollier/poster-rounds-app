@@ -5,7 +5,7 @@
 import { $, toast } from "./ui.js";
 import { esc } from "./map.js";
 import { store } from "./data.js";
-import { fitBT, chooseDeck, swissRound, quality } from "./rank.js";
+import { fitBT, chooseDeck, quality, historyFromRows, nextPair, comparisonsIn as comparisons, unknownIn as unknown } from "./rank.js";
 import { CONFIG } from "../config.js";
 
 const DECK = "v1";        // bump when the deck rules change: a new deck starts a new schedule
@@ -18,41 +18,16 @@ const ICON = { boards: "📋", sci: "🔬", arts: "🎭", libraries: "📚", stu
   musicshops: "💿", musicschools: "🎻", youth: "🎸", veggie: "🥗", organic: "🌱", animalorgs: "🐾", cafes: "☕",
   community: "🏘️", sport: "🧗" };
 
-// What one swipe means for the fit: 1 = left better, 0 = right better, 0.5 = about the same.
-const Y = { left: 1, right: 0, draw: 0.5 };
-
-// This admin's swipes for this campaign, kept on the phone: [{left, right, outcome, round}].
-// The schedule is rebuilt from them, so a session can stop at any moment and continue later.
-const key = campaignId => `train:${campaignId}:${DECK}`;
-function history(campaignId, name, fromServer) {
-  const mine = store.get(key(campaignId), null);
-  if (mine) return mine;
-  // A new phone: start from this admin's swipes in the sheet (an undo takes back the swipe it points at).
-  const rows = (fromServer || []).filter(r => r.by === name && r.deck_version === DECK);
-  const undone = new Set(rows.filter(r => r.outcome === "undo").map(r => r.undo_of));
-  return rows.filter(r => r.outcome !== "undo" && !undone.has(r.swipe_id))
-    .map(r => ({ left: r.left_id, right: r.right_id, outcome: r.outcome, round: +r.round || 1 }));
-}
-
-// Comparisons for the fit, and the places this admin said they don't know (left out of their pairs).
-const comparisons = h => h.filter(x => x.outcome in Y).map(x => ({ a: x.left, b: x.right, y: Y[x.outcome] }));
-const unknown = h => new Set(h.flatMap(x => (x.outcome === "unknown_left" ? [x.left] : x.outcome === "unknown_right" ? [x.right] : [])));
-
-// The next pair: the first pair of the current Swiss round that hasn't been swiped yet; a finished round
-// starts the next one, paired by the scores so far.
-function nextPair(deck, h, seed) {
-  const known = deck.filter(id => !unknown(h).has(id));
-  for (let round = 1; round < 99; round++) {
-    const before = h.filter(x => x.round < round), now = h.filter(x => x.round === round);
-    const scores = fitBT(known, comparisons(before));
-    const pairs = swissRound(known, before.map(x => ({ a: x.left, b: x.right })), scores, seed, round);
-    const done = new Set(now.map(x => [x.left, x.right].sort().join("|")));
-    const gone = unknown(h);
-    const next = pairs.find(p => !done.has([p.left, p.right].sort().join("|")) && !gone.has(p.left) && !gone.has(p.right));
-    if (next) return { ...next, round };
-    if (pairs.length < 2) return null; // too few places left to pair
-  }
-  return null;
+// This admin's schedule for this campaign, kept on the phone: the deck and seed it started with (so a
+// place added later or a changed list doesn't reshuffle it) and the swipes [{left, right, outcome, round}].
+// The next pair is rebuilt from it, so a session can stop at any moment and continue later.
+const key = (campaignId, name) => `train:${campaignId}:${name}:${DECK}`;
+function loadPlan(campaignId, name, fromServer, freshDeck) {
+  const saved = store.get(key(campaignId, name), null);
+  if (saved?.deck) return saved;
+  // A new phone: start from this admin's swipes in the sheet (undos applied, as the fit tool does).
+  const seed = [...`${campaignId}|${name}`].reduce((h, c) => (h * 31 + c.charCodeAt(0)) % 1e9, 7);
+  return { deck: freshDeck, seed, h: historyFromRows(fromServer || [], name, DECK) };
 }
 
 // A small map around the place: one map tile with a pin in the middle (no extra map library needed).
@@ -84,10 +59,10 @@ function cardHtml(p, type, where, side) {
 export function openTrain(ctx) {
   const d = $("train"), byId = new Map(ctx.places.map(p => [p.place_id, p]));
   const types = Object.fromEntries(ctx.types.map(t => [t.type, t]));
-  const deck = chooseDeck(ctx.places, { must: MUST });
-  const seed = [...`${ctx.campaignId}|${ctx.name}`].reduce((h, c) => (h * 31 + c.charCodeAt(0)) % 1e9, 7);
-  let h = history(ctx.campaignId, ctx.name, ctx.swipes), goal = 0, start = h.length, pair = null, prev = null;
-  const save = () => store.set(key(ctx.campaignId), h);
+  const plan = loadPlan(ctx.campaignId, ctx.name, ctx.swipes, chooseDeck(ctx.places, { must: MUST }));
+  const deck = plan.deck.filter(id => byId.has(id)), seed = plan.seed, h = plan.h; // (a place removed from the sheet drops out)
+  let goal = 0, start = h.length, pair = null, prev = null;
+  const save = () => store.set(key(ctx.campaignId, ctx.name), plan);
 
   const show = step => { for (const s of ["budget", "swipe", "done"]) $(`train-${s}`).hidden = s !== step; };
   $("train-event").textContent = $("train-event2").textContent = ctx.event || "this event";
@@ -96,7 +71,7 @@ export function openTrain(ctx) {
   d.showModal();
 
   const draw = () => {
-    const doneNow = h.length - start;
+    const doneNow = Math.max(0, h.length - start); // (an undo can reach back before this session)
     if (doneNow >= goal || h.length >= TOTAL || !(pair = nextPair(deck, h, seed))) return finish();
     $("train-bar").style.width = `${Math.round(100 * doneNow / goal)}%`;
     $("train-count").textContent = `${doneNow} / ${goal} · ${h.length} of ${TOTAL} in total`;
@@ -134,6 +109,7 @@ export function openTrain(ctx) {
   $("train-undo").onclick = () => {
     const last = h.pop();
     if (!last) return;
+    start = Math.min(start, h.length);
     save();
     // The sheet keeps every swipe; this row tells the fit to drop the last one of this pair.
     ctx.send({ action: "swipe", deck_version: DECK, round: last.round, left_id: last.left, right_id: last.right, outcome: "undo" });

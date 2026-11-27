@@ -60,8 +60,10 @@ function stops() {
   const how = { set: learnedSet(), overrides: overrides(), weights: w, places: boot.places };
   return boot.places
     .map(place => ({ place, stars: placeStars(place, how), type: types[place.type] || { label: place.type, color: "#444" },
+                     pinned: settings?.role === "admin" && how.overrides[place.place_id] !== undefined, // set by hand
                      res: results[keyOf(place)] || null }))
-    .filter(s => s.stars > 0);
+    // 0★ places are hidden; an admin still sees a place they set by hand, so they can change it back.
+    .filter(s => s.stars > 0 || s.pinned);
 }
 const findStop = id => stops().find(s => s.place.place_id === id);
 
@@ -86,7 +88,7 @@ let routeTravel = "bike", finishedDest = null, zonePark = null; // for the Navig
 const saveView = () => { store.set("view", view); store.set("filters", filters); };
 
 const skip = () => new Set(filters.skip);
-const passes = s => !skip().has(s.place.type) && s.stars >= +filters.min;
+const passes = s => s.pinned || (!skip().has(s.place.type) && s.stars >= +filters.min);
 const filterKey = () => JSON.stringify([boot.campaign_id, currentEvent(), filters.min, [...filters.skip].sort()]);
 
 // Each kind of event comes with its preset of place types (weight above 0). Switching to another kind
@@ -606,8 +608,9 @@ async function onAction(e) {
   if (act === "nav") beginNav({ lat: +s.place.lat, lon: +s.place.lon, name: s.place.name, id: s.place.place_id }, routeTravel);
   if (act === "from" || act === "to") setWay({ [act]: { lat: +s.place.lat, lon: +s.place.lon, label: s.place.name } });
   if (act === "ovr") { // admin: set this place's stars for the campaign
-    queue.add({ action: "override", campaign_id: boot.campaign_id, place_id: s.place.place_id, stars: +el.dataset.stars });
-    toast(`${s.place.name}: ${el.dataset.stars}★ for this campaign.`, 4000);
+    const n = el.dataset.stars === "" ? "" : +el.dataset.stars; // "" = clear: back to the learned/type stars
+    queue.add({ action: "override", campaign_id: boot.campaign_id, place_id: s.place.place_id, stars: n });
+    toast(n === "" ? `${s.place.name}: back to its own stars.` : `${s.place.name}: ${n}★ for this campaign.`, 4000);
     render(); flush();
   }
 }
@@ -618,7 +621,8 @@ setPopupExtra(s => {
   const cur = overrides()[s.place.place_id];
   return `<div class="ovr">Stars for ${esc(currentEvent() || "this event")}:<div class="pop-btns">${[0, 1, 2, 3].map(n =>
     `<button type="button" class="popbtn alt${cur === n ? " on" : ""}" data-act="ovr" data-stars="${n}" data-id="${esc(s.place.place_id)}"
-      aria-label="${n} stars">${n}</button>`).join("")}</div></div>`;
+      aria-label="${n} stars">${n}</button>`).join("")}${cur === undefined ? ""
+      : `<button type="button" class="popbtn alt" data-act="ovr" data-stars="" data-id="${esc(s.place.place_id)}">Clear</button>`}</div></div>`;
 });
 $("sheet").addEventListener("click", onAction);
 $("map").addEventListener("click", onAction);

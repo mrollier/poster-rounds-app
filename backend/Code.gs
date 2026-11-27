@@ -229,7 +229,9 @@ function auth_(code) {
   code = String(code || '').trim();
   if (!code) throw new Error('wrong code');
   for (const c of rows_(TABS.campaigns)) {
-    const role = code === String(c.admin_code).trim() ? 'admin' : code === String(c.volunteer_code).trim() ? 'volunteer' : '';
+    // (a missing column or empty cell never matches: no campaign is open by accident)
+    const is = v => v !== undefined && v !== null && String(v).trim() !== '' && code === String(v).trim();
+    const role = is(c.admin_code) ? 'admin' : is(c.volunteer_code) ? 'volunteer' : '';
     if (!role) continue;
     if (!isTrue_(c.active)) throw new Error('campaign closed');
     return { campaign: c, role: role };

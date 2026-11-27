@@ -38,6 +38,12 @@ assert.strictEqual(get({ action: 'bootstrap', code: 'Secret' }).error, 'wrong co
 tabs.Campaigns.push(tabs.Campaigns[1].map((v, j) => ({ 0: 'old-campaign', 8: 'FALSE' })[j] ?? v));
 const hd = tabs.Campaigns[0]; tabs.Campaigns[2][hd.indexOf('admin_code')] = 'old-admin'; tabs.Campaigns[2][hd.indexOf('volunteer_code')] = 'old-vol';
 assert.strictEqual(get({ action: 'bootstrap', code: 'old-vol' }).error, 'campaign closed');
+// A sheet without the code columns: nobody gets in (and certainly not with the code "undefined").
+const savedCampaigns = tabs.Campaigns.map(r => r.slice());
+const ai = tabs.Campaigns[0].indexOf('admin_code');
+tabs.Campaigns = tabs.Campaigns.map(r => r.filter((_, j) => j < ai));
+assert.strictEqual(get({ action: 'bootstrap', code: 'undefined' }).error, 'wrong code');
+tabs.Campaigns = savedCampaigns;
 const C = '2026-12-ai-safety-lecture';
 let r = post({ code: 'secret', name: 'Test', action: 'result', campaign_id: C, place_id: 'T06', cycle: '', status: 'posted', posters: 2 });
 assert.ok(r.ok, JSON.stringify(r));

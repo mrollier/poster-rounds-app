@@ -13,7 +13,10 @@ const INSIDE = 60;   // metres: a place this close may be the building you're in
 // The place nearest to `p` within INSIDE metres, or null.
 function nearestPlace(p, places) {
   let best = null;
-  for (const q of places) if (hav(p, q) <= INSIDE && (!best || hav(p, q) < hav(p, best))) best = q;
+  for (const q of places) {
+    if (q.type === "boards") continue; // a city board is outdoors: nothing to be "inside" of
+    if (hav(p, q) <= INSIDE && (!best || hav(p, q) < hav(p, best))) best = q;
+  }
   return best;
 }
 
