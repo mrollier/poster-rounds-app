@@ -112,7 +112,8 @@ export function spearman(xs, ys) {
 }
 
 // For the screen: the fewest comparisons any deck place has had, the share of "about the same", and how
-// much the order still moved since the previous round (1 = not at all; ≥ 0.9 counts as settled).
+// much the order still moved since the previous round (1 = not at all). A high number early on doesn't mean the
+// order is right: later rounds pair neighbours, so one round can't move it much.
 export function quality(comparisons, ids, scores, before) {
   const n = Object.fromEntries(ids.map(id => [id, 0]));
   for (const c of comparisons) { if (c.a in n) n[c.a]++; if (c.b in n) n[c.b]++; }

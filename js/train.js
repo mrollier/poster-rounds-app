@@ -115,8 +115,8 @@ export function openTrain(ctx) {
     const q = quality(comps, ids, now, before);
     $("train-summary").innerHTML = `<b>${h.length - start}</b> swipes this time, <b>${h.length}</b> of ${TOTAL} in total.<br>
       Fewest swipes for one place: <b>${q.minPer}</b> (4 or more is good).<br>
-      How settled the order is: <b>${Math.round(q.settled * 100)}%</b> (90% or more is settled).
-      ${q.drawShare > 0.35 ? "<br>Many \"about the same\": maybe take a break." : ""}`;
+      Order change in the last round: <b>${Math.max(0, Math.round((1 - q.settled) * 100))}%</b>.
+      ${q.drawShare > 0.35 ? "<br>Many \"about the same\": if you lean even a little, pick that one." : ""}`;
     show("done");
   };
 
