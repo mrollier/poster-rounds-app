@@ -172,8 +172,8 @@ places with similar scores, because those comparisons teach the most.
    So Claude doesn't use its own scale: it uses yours.
 3. **An honest check.** Twelve of your swiped places are held back from step 1. Claude rates them blind, and
    we count how often its scores pick the winner of your real swipes, against how often today's type rule
-   does. If Claude doesn't beat the rule, the set isn't used. You also write down your own top 25 before you
-   see the result; the new top 25 must clearly match it better than today's.
+   does. If Claude doesn't beat the rule, the set isn't used. Before you see the result, you also name ~10
+   places that must be 3★; the new set must give 3★ to at least 8 of them, and to more than today's rule.
 4. **Scores to stars** by the shares above, written to the Scores and Sets tabs. Phones pick it up at the
    next refresh.
 

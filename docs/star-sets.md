@@ -35,8 +35,9 @@ The plain-words explanation is in README "How the stars are made"; the code is `
    - It prints how often the new scores and today's rule pick the winner on swipes that involve a held-back
      place.
    - **If the new scores don't beat today's rule, stop:** keep the rule and tell the organiser.
-   - Then the organiser's blind check: they write down their own top 25 for the event first, without looking.
-     Compare it with the new top 25 and with today's. The new set must clearly win.
+   - Then the organiser's blind check: before seeing the new set, they name ~10 places that must be 3★ for
+     this event. Count how many of them get 3★ from the new set and from today's rule. The new set must
+     get more (and at least 8 of 10); for each one it misses, say why.
 5. **Write to the sheet:** append `scores.csv` to Scores and `set.csv` to Sets. The `set_id` is the
    campaign_id for that campaign only, or `default:<event>` for the default.
    - The 10% / 25% / 50% score lines in Sets freeze the stars. Places added later get the average of similar
