@@ -210,7 +210,7 @@ export function nextPair(deck, h, seed) {
   const gone = unknownIn(h);
   for (let round = 1; round < 99; round++) {
     const before = h.filter(x => x.round < round), now = h.filter(x => x.round === round);
-    const known = deck.filter(id => !unknownIn(before).has(id));
+    const unknownBefore = unknownIn(before), known = deck.filter(id => !unknownBefore.has(id));
     const scores = fitBT([...known, LINES.high, LINES.low], comparisonsIn(before)); // (lines: see "Both 3★" at the top)
     const pairs = swissRound(known, before.map(x => ({ a: x.left, b: x.right })), scores, seed, round);
     const done = new Set(now.map(x => [x.left, x.right].sort().join("|")));

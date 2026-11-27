@@ -47,11 +47,12 @@ export function drawPins(pins) {
   if (sig === lastPins) return;
   lastPins = sig;
   placesLayer.clearLayers();
+  const pop = { minWidth: Math.min(270, window.innerWidth - 70), ...popupPadding() }; // measured once, not per pin
   for (const p of pins) {
     // keyboard: false keeps 200 pins out of the Tab order; the list has every stop with the same buttons.
     // The autopan padding keeps an opened popup clear of the top bar and the zoom buttons.
     L.marker([p.lat, p.lon], { icon: pinIcon(p.color, p.label, p.cls), title: p.title, zIndexOffset: p.z || 0, keyboard: false })
-      .bindPopup(p.popup, { minWidth: Math.min(270, window.innerWidth - 70), ...popupPadding() }).addTo(placesLayer);
+      .bindPopup(p.popup, pop).addTo(placesLayer);
   }
 }
 

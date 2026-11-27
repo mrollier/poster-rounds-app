@@ -84,7 +84,8 @@ let routeTravel = "bike", finishedDest = null, zonePark = null; // for the Navig
 const saveView = () => { store.set("view", view); store.set("filters", filters); };
 
 const skip = () => new Set(filters.skip);
-const passes = s => s.pinned || (!skip().has(s.place.type) && s.stars >= +filters.min);
+// The filter test for one stop; built once per use (not once per stop): `all.filter(passes())`.
+const passes = () => { const off = skip(), min = +filters.min; return s => s.pinned || (!off.has(s.place.type) && s.stars >= min); };
 const filterKey = () => JSON.stringify([boot.campaign_id, currentEvent(), filters.min, [...filters.skip].sort()]);
 
 // Each kind of event comes with its preset of place types (weight above 0). Switching to another kind
@@ -102,6 +103,10 @@ const distText = m => (m < 1000 ? `${Math.round(m / 10) * 10} m` : `${(m / 1000)
 const homeLabel = () => (lastPosition() ? "your position" : settings.home ? "home" : "the city centre");
 
 // ---------- Drawing ----------
+
+// Sending a queue of N writes would otherwise redraw everything N times in a row: once is enough.
+let renderQueued = false;
+const renderSoon = () => { if (!renderQueued) { renderQueued = true; requestAnimationFrame(() => { renderQueued = false; render(); }); } };
 
 function render() {
   const c = campaign();
@@ -121,7 +126,7 @@ function render() {
   setHome(settings.home);
   renderSync();
   syncPreset();
-  const all = stops(), kept = all.filter(passes);
+  const all = stops(), kept = all.filter(passes());
   $("zone-chip").hidden = true; // shown again below only while a zone is open
   if (view.mode === "zones") return renderZones(kept, all);
   drawZones(null);
@@ -134,7 +139,7 @@ function renderAll(kept) {
   const from = origin(), home = settings.home || null;
   routeTravel = filters.travel;
   finishedDest = home ? { ...home, name: "home" } : null;
-  const away = s => dist(from, s.place);
+  const far = new Map(kept.map(s => [s, dist(from, s.place)])), away = s => far.get(s); // each distance once
   const open = kept.filter(s => !done(s)).sort((a, b) => away(a) - away(b));
   const doneOnes = kept.filter(done);
   // A stop marked "come back later" waits until nothing else is left.
@@ -364,7 +369,7 @@ $("modes").addEventListener("change", e => {
 });
 
 function setWay(patch) {
-  way = computeWayIds(stops().filter(passes), { ...way, ...patch }, filters.travel);
+  way = computeWayIds(stops().filter(passes()), { ...way, ...patch }, filters.travel);
   store.set("way", way);
   render();
 }
@@ -526,9 +531,9 @@ const queue = createQueue({
       // Tapped while offline, but a teammate saved this stop later: the server kept theirs.
       if (reply.stale) toast(`${reply.result.by} updated ${findStop(reply.result.place_id)?.place.name || "a stop"} after you: their result is kept.`, 8000);
     }
-    render();
+    renderSoon();
   },
-  onRefused: (item, e) => { toast(`A change could not be saved: ${e.message}`); render(); },
+  onRefused: (item, e) => { toast(`A change could not be saved: ${e.message}`); renderSoon(); },
 });
 
 let retryDelay = 2000, retryTimer = null;

@@ -59,8 +59,9 @@ export function navUpdate(pos) {
     const near = nearestOnLine(pos, n.line);
     if (good) n.off = near.off > OFF_ROUTE ? n.off + 1 : 0;
     if (n.off >= 2 && late && !n.arrived) reroute(); // wandered off the route: a new one from here
-    metres = lineLeft(n.line, near) + near.off; // what's left of the line, plus getting back onto it
-    mins = n.total ? (n.seconds / 60) * (lineLeft(n.line, near) / n.total) + minutes(near.off, n.travel) : minutes(metres, n.travel);
+    const left = lineLeft(n.line, near);
+    metres = left + near.off; // what's left of the line, plus getting back onto it
+    mins = n.total ? (n.seconds / 60) * (left / n.total) + minutes(near.off, n.travel) : minutes(metres, n.travel);
   } else {
     metres = dist(pos, n.dest);
     mins = minutes(metres, n.travel);
