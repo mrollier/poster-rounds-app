@@ -131,7 +131,10 @@ set exists.
   pin, and for every place a location line: the sector name and the nearest well-known place within
   ~300 m ("Overpoort · 80 m from Campus Ufo"), so look-alike cards such as city boards can be told apart. A `website` column is added to Places by a one-off research pass (subagents) **[my call]**.
   Website icons are fetched only when the swipe screen is open.
-- Progress: "123 / 250", minimum comparisons per place, and a "settled" signal (see 3.4).
+- **Time budget:** at the start the admin picks how much time they have (5 / 10 / 15 / 25 min, ≈ 10 swipes
+  per minute); the number of swipes follows from it, shown as a progress bar. They can stop early or add
+  time; the next session continues the same schedule towards ~250 in total.
+- Progress: the bar, minimum comparisons per place, and a "settled" signal (see 3.4).
 - Works offline: swipes go through the existing outbox.
 
 ### 3.4 The deck and the pairing (from the comparison analyst)
@@ -194,8 +197,17 @@ volunteers). Order stays Part 1 → 2 → 3, built quickly; the critical path is
 Claude rating, the held-out check, the owner's blind top 25, and two manual Apps Script redeploys. Target:
 set live by ~4 Dec, leaving 5 days of posting. If the check in 3.6 fails, the lecture keeps today's stars.
 
-## Open
+## Known wrong places (owner, 2026-11-27, AI Safety) – always in the deck
 
-- The owner has no list of clearly wrong places; the deck leans towards places where the current
-  importance is least certain instead, and the admin override handles wrong places found later.
+| Place | Today | Owner thinks |
+| --- | --- | --- |
+| Campus UFO | 1★ | 3★ |
+| Vlerick | 3★ | 2★ |
+| Timelab | 3★ | 1–2★ |
+| Syntra Gent | 3★ | 1–2★ |
+| Public library Bloemekenswijk | 2★ | 1★ |
+| City boards such as Stapelplein (barely visible, mostly for professionals' notices) | 2★ | lower |
+
+Also: libraries often don't allow posters (found out at De Krook). Worth an `access`/notes check for
+libraries in the sheet, and a reason why libraries may come out low in the swipes.
 - Each part is its own set of commits; parts 2 and 3 each need one manual Apps Script redeploy.
