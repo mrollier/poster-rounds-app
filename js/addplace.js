@@ -5,8 +5,17 @@ import { pickPoint, cancelPick, esc } from "./map.js";
 import { lastPosition } from "./location.js";
 import { stars, eventWeights, starText } from "./logic.js";
 import { seg } from "./views.js";
+import { hav } from "./geo.js";
 
 const POOR_FIX = 50; // metres: warn when the GPS position is this uncertain
+const INSIDE = 60;   // metres: a place this close may be the building you're in (a faculty, a library)
+
+// The place nearest to `p` within INSIDE metres, or null.
+function nearestPlace(p, places) {
+  let best = null;
+  for (const q of places) if (hav(p, q) <= INSIDE && (!best || hav(p, q) < hav(p, best))) best = q;
+  return best;
+}
 
 async function choosePosition() {
   const here = lastPosition();
@@ -23,15 +32,21 @@ async function choosePosition() {
   return { ...p, source: "tap", text: "The point you tapped on the map." };
 }
 
-// Resolves the addPlace request body, or null when cancelled.
-export async function addPlace({ types, campaign, event }) {
+// Resolves the addPlace request body, or null when cancelled. places: the campaign's places, to offer
+// "a poster board inside <the place you're at>" (the real ad valvas board in a faculty, say).
+export async function addPlace({ types, campaign, event, places = [] }) {
   const where = await choosePosition();
   if (!where) return null; // cancelled
+  const near = nearestPlace(where, places);
+  const inside = near && await ask(`Is it a poster board inside ${near.name}?`, { ok: "Yes, inside it", cancel: "No, a new place" }) ? near : null;
   const d = $("add-dlg");
   $("add-form").reset();
   $("add-where").textContent = `Position: ${where.text}`;
   // No type picked yet: otherwise a hurried volunteer adds every place as the first type (city boards).
   $("a-type").innerHTML = `<option value="">Choose…</option>` + types.map(t => `<option value="${esc(t.type)}">${esc(t.label)}</option>`).join("");
+  // Inside a place: same type and address, and the note says where inside.
+  if (inside) { $("a-name").value = `${inside.name} – poster board`; $("a-type").value = inside.type; }
+  $("a-notes").placeholder = inside ? "Where inside? e.g. ground floor, left of the lift" : "e.g. notice board left of the entrance";
   $("a-imp").innerHTML = seg("imp", [[1, "★"], [2, "★★"], [3, "★★★"]], 2);
   $("a-access").innerHTML = seg("access", [["ask", "Ask first"], ["free", "Hang freely"]], "ask");
   $("a-error").hidden = true;
@@ -58,6 +73,7 @@ export async function addPlace({ types, campaign, event }) {
         type: $("a-type").value, tags: $("a-type").value, importance: +val("imp"), access: val("access"),
         posters: Math.max(1, Math.min(10, parseInt($("a-posters").value, 10) || 1)), notes: $("a-notes").value.trim(),
         lat: where.lat, lon: where.lon, location_source: where.source,
+        org: inside?.org || "", address: inside?.address || "",
       };
     }
     $("a-error").textContent = missing; $("a-error").hidden = false;

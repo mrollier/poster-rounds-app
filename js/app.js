@@ -606,7 +606,7 @@ $("add-btn").onclick = async () => {
   if (!campaign()) return toast("No active campaign: the organiser can set one to active in the sheet.");
   closePopup(); closeSheet();
   adding = true;
-  const body = await addPlace({ types: boot.types, campaign: campaign(), event: currentEvent() }).finally(() => { adding = false; });
+  const body = await addPlace({ types: boot.types, campaign: campaign(), event: currentEvent(), places: boot.places }).finally(() => { adding = false; });
   if (!body) return;
   // ponytail: if the answer is lost after the sheet saved the place, a retry adds it twice; delete the copy in the sheet.
   queue.add(body);
