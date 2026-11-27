@@ -175,3 +175,15 @@ test("simulation: the fit recovers the order and where the 3★ / 1★ lines are
   const plain = fitBT(deck, swipesToComparisons(rows.map(r => ({ ...r, outcome: r.outcome.startsWith("both") ? "draw" : r.outcome }))));
   assert.ok(rho > spearman(deck.map(id => truth[id]), deck.map(id => plain.get(id).score)), "lines don't help the order");
 });
+
+test("shares: a range for 3★ puts the line at the biggest gap in the scores within it (a natural break)", () => {
+  // 100 scores, evenly 0.01 apart, except a big gap between the 13th and 14th best.
+  const scores = Array.from({ length: 100 }, (_, i) => (i < 13 ? 10 - i * 0.01 : 5 - i * 0.01));
+  const set = sharesToThresholds(scores, { t3: [0.08, 0.15] });
+  assert.equal(scores.filter(s => starsFromScore(s, set) === 3).length, 13);
+  // No clear gap: still inside the range. A single number keeps working as before.
+  const even = Array.from({ length: 100 }, (_, i) => i), r = sharesToThresholds(even, { t3: [0.08, 0.15] });
+  const n3 = even.filter(s => starsFromScore(s, r) === 3).length;
+  assert.ok(n3 >= 8 && n3 <= 15, `${n3}`);
+  assert.equal(even.filter(s => starsFromScore(s, sharesToThresholds(even)) === 3).length, 10);
+});

@@ -15,7 +15,10 @@ The plain-words explanation is in README "How the stars are made"; the code is `
      two fitted lines, the "3★ line" and the "1★ line" (`LINES` in `js/rank.js`); the lines are never anchors,
      held back, or written out. Swipes from before 2026-11-27 have plain draws ("About the same").
    - 12 swiped places are held back for the check in step 4.
-   - 9 anchor places are picked, spread from best to worst.
+   - 9 anchor places are picked, spread from best to worst. Check that every kind of place that matters for
+     the event has one; if not, add swiped places of that kind as extra anchors (place_ids after the files).
+     AI Safety 2026-12 lesson: without a coworking/maker anchor Claude rated those places far below where the
+     organiser's swipes put them; with Timelab, Backyard, Start it X and MeetDistrict added, re-run.
    - All of this is written to `fit-work.json`.
 3. **Claude rates the other places**, two independent passes in fresh contexts:
    - Batches of ~30 places, mixed types, shuffled; the second pass uses a different order.
@@ -46,7 +49,8 @@ The plain-words explanation is in README "How the stars are made"; the code is `
      get more (and at least 8 of 10); for each one it misses, say why.
 5. **Write to the sheet:** append `scores.csv` to Scores and `set.csv` to Sets. The `set_id` is the
    campaign_id for that campaign only, or `default:<event>` for the default.
-   - The 10% / 25% / 50% score lines in Sets freeze the stars. Places added later get the average of similar
+   - The 3★ / 2★ / 1★ score lines in Sets freeze the stars (3★: the biggest score gap within the top 8–15%,
+     `SHARES` in `js/rank.js`; 2★ down to 25%; 1★ down to 50%). Places added later get the average of similar
      places.
    - To redo a set: delete its old rows in Scores and Sets first.
 6. **Tell the organiser** what changed (3★ count, the biggest movers) and that phones show it after a refresh.

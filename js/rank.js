@@ -5,7 +5,8 @@
 //     is 1 / (1 + e^(score_B − score_A)).
 //   - Each admin sees a deck of 60 places, paired like a chess tournament ("Swiss rounds"): first at
 //     random, later places with similar scores meet, so each swipe teaches the most.
-//   - Scores become stars by share: the top 10% 3★, the next 15% 2★, the next 25% 1★, the rest 0★.
+//   - Scores become stars by share: the top 8–15% 3★ (where the scores jump most), down to 25% 2★, down to
+//     50% 1★, the rest 0★.
 //   - No winner: "Both 0★" / "Both 1–2★" / "Both 3★" also say where the pair stands, not just that the two
 //     are alike (a plain draw at the top and one at the bottom look the same). Such a swipe counts as a draw
 //     between the two, plus each place's side of two lines: the "3★ line" and the "1★ line", two pretend
@@ -143,10 +144,19 @@ export function quality(comparisons, ids, scores, before) {
 
 // ---------- Scores to stars ----------
 
-// The scores at the 10% / 25% / 50% lines. Stored with a set when it is made, so later places don't
-// shift anyone's stars ("frozen per campaign").
+// The scores at the 3★ / 2★ / 1★ lines. Stored with a set when it is made, so later places don't shift
+// anyone's stars ("frozen per campaign"). A share is a number (10% = 0.10) or a range [from, to]: then the
+// line goes where the scores jump the most within that range (a natural break), so two places with almost
+// the same score don't end up on either side of it. The organiser: 3★ for 8–15%, not a strict 10%.
+export const SHARES = { t3: [0.08, 0.15], t2: 0.25, t1: 0.50 };
 export function sharesToThresholds(scores, { t3 = 0.10, t2 = 0.25, t1 = 0.50 } = {}) {
-  const s = [...scores].sort((a, b) => b - a), at = share => s[Math.max(0, Math.round(share * s.length) - 1)];
+  const s = [...scores].sort((a, b) => b - a), n = s.length;
+  const at = share => {
+    if (!Array.isArray(share)) return s[Math.max(0, Math.round(share * n) - 1)];
+    let best = Math.max(1, Math.round(share[0] * n)); // the number of places at or above the line
+    for (let k = best; k <= Math.min(n - 1, Math.round(share[1] * n)); k++) if (s[k - 1] - s[k] > s[best - 1] - s[best]) best = k;
+    return s[best - 1];
+  };
   return { t3: at(t3), t2: at(t2), t1: at(t1) };
 }
 export const starsFromScore = (score, set) => (score >= set.t3 ? 3 : score >= set.t2 ? 2 : score >= set.t1 ? 1 : 0);

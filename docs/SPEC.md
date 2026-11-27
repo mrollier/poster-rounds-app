@@ -63,7 +63,7 @@ them by hand). Unit tests: the seed data gives 32 / 42 / 124 places with 3 / 2 /
 Stars per place, the first that applies: an admin's override for the campaign (Overrides tab) → a learned
 set (Scores + Sets tabs: `set_id` = the campaign_id, else `default:<event_type>`; only for the campaign's own
 kind of event) → the type rule above. A learned set's score becomes stars by its frozen lines `t3/t2/t1`
-(top 10% / 25% / 50% when it was made); a place without a score gets the average of its type and importance.
+(top 8–15% at the biggest score gap / 25% / 50% when it was made); a place without a score gets the average of its type and importance.
 With a learned set the type preset in Filters is off. Sets are made from admins' swipes (README "How the
 stars are made", `docs/star-sets.md`, `js/rank.js`, `tools/fit-set.mjs`).
 

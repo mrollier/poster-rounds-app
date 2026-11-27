@@ -1,9 +1,11 @@
 // Turns admins' swipes into a learned star set (Scores + Sets tabs). Run by a developer with Claude;
 // the steps are in docs/star-sets.md. No libraries.
 //
-//   1. node tools/fit-set.mjs anchors <swipes.csv> <places.csv>
+//   1. node tools/fit-set.mjs anchors <swipes.csv> <places.csv> [extra anchor place_ids …]
 //        Fits the swipes (Bradley–Terry, js/rank.js), holds back 12 swiped places for a check, and writes
-//        fit-work.json: the anchor places (best first) and the places Claude still has to rate.
+//        fit-work.json: the anchor places (best first) and the places Claude still has to rate. Extra anchors:
+//        swiped places of a kind the 9 evenly spread anchors miss (Claude needs a yardstick for every kind
+//        of place that matters for the event; e.g. coworking and maker spaces for AI Safety).
 //   2. Claude rates every place in "toRate" by putting it between two anchors → placements.csv with
 //        columns place_id,k,pos (k = the anchor just above it, -1 = above the best; pos = closer_top /
 //        middle / closer_bottom). Two passes = two rows per place: they are averaged.
@@ -12,7 +14,7 @@
 //        places), then writes scores.csv and set.csv to paste into the Scores and Sets tabs.
 import fs from "node:fs";
 import { parseCSV } from "../tests/csv.js";
-import { fitBT, swipesToComparisons, placeBetween, sharesToThresholds, starsFromScore, LINES, tierLabels } from "../js/rank.js";
+import { fitBT, swipesToComparisons, placeBetween, sharesToThresholds, starsFromScore, LINES, tierLabels, SHARES } from "../js/rank.js";
 import { stars, eventWeights } from "../js/logic.js";
 
 const table = f => { const [head, ...rows] = parseCSV(fs.readFileSync(f, "utf8")); return rows.map(r => Object.fromEntries(head.map((k, i) => [k, r[i]]))); };
@@ -28,7 +30,7 @@ function swipedPlaces(swipesFile, live) {
 }
 
 if (cmd === "anchors") {
-  const [swipesFile, placesFile] = args;
+  const [swipesFile, placesFile, ...extra] = args;
   const places = table(placesFile).filter(active), live = new Set(places.map(p => p.place_id));
   // Only swipes between places that are still active (a place removed from the sheet can't be an anchor).
   const { comps, swiped } = swipedPlaces(swipesFile, live);
@@ -38,7 +40,9 @@ if (cmd === "anchors") {
   const train = comps.filter(c => !heldout.includes(c.a) && !heldout.includes(c.b));
   const fitted = fitBT([...swiped.filter(id => !heldout.includes(id)), ...REF], train);
   const order = [...fitted.keys()].filter(id => live.has(id)).sort((x, y) => fitted.get(y).score - fitted.get(x).score);
-  const anchors = Array.from({ length: 9 }, (_, i) => order[Math.round(i * (order.length - 1) / 8)])
+  for (const id of extra) if (!fitted.has(id) || !live.has(id)) throw new Error(`extra anchor ${id}: not a swiped place, or held back`);
+  const anchors = [...new Set([...Array.from({ length: 9 }, (_, i) => order[Math.round(i * (order.length - 1) / 8)]), ...extra])]
+    .sort((x, y) => fitted.get(y).score - fitted.get(x).score)
     .map(id => { const p = places.find(q => q.place_id === id); return { place_id: id, name: p?.name, type: p?.type, address: p?.address, score: fitted.get(id).score }; });
   const toRate = places.map(p => p.place_id).filter(id => !fitted.has(id));
   fs.writeFileSync("fit-work.json", JSON.stringify({ heldout, anchors, toRate, comparisons: comps.length }, null, 1));
@@ -70,7 +74,7 @@ if (cmd === "anchors") {
     if (score === undefined) continue;
     rows.push([setId, p.place_id, score.toFixed(3), f ? "swiped" : "predicted", f ? "bradley-terry" : "claude/protocol-v1", f ? f.n : 0, now]);
   }
-  const t = sharesToThresholds(rows.map(r => +r[2]));
+  const t = sharesToThresholds(rows.map(r => +r[2]), SHARES);
   const count = [0, 0, 0, 0]; rows.forEach(r => count[starsFromScore(+r[2], t)]++);
   fs.writeFileSync("scores.csv", ["set_id,place_id,score,source,rater,n,updated_at", ...rows.map(r => r.join(","))].join("\n") + "\n");
   fs.writeFileSync("set.csv", `set_id,event,t3,t2,t1,made_by,made_at,note\n"${setId}","${event}",${t.t3.toFixed(3)},${t.t2.toFixed(3)},${t.t1.toFixed(3)},Claude,${now},"${comps.length} swipes"\n`);

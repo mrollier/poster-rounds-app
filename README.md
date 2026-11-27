@@ -140,8 +140,9 @@ poster (hidden). There are three ways a place gets its stars; the first one that
 1. **An admin set it by hand.** In a place's pop-up, admins see "Stars for AI Safety: 0 1 2 3". That fixes an
    obvious mistake at once, for this campaign only.
 2. **A learned set** (once the admins have trained the stars, see below). Every place has a **score**, and
-   the score decides the stars by share: the top 10% of places get 3★, the next 15% 2★, the next 25% 1★, and
-   the bottom half 0★. In Ghent that's about 40 / 60 / 100 / 190 places. The lines are fixed when the set is
+   the score decides the stars by share: the top 8–15% of places get 3★ (the line goes where the scores jump the
+   most, so near-equal places aren't split), down to 25% 2★, down to 50% 1★, and
+   the bottom half 0★ (hidden). For the AI Safety lecture: 52 / 44 / 96 / 192 places. The lines are fixed when the set is
    made, so the stars don't shift while volunteers are out. A place added later gets the average score of
    places of its type and importance.
 3. **Otherwise the type rule** (the section above): the type's weight for the event, minus one for a quiet spot.
@@ -182,7 +183,7 @@ places with similar scores, because those comparisons teach the most.
    does. If Claude doesn't beat the rule, the set isn't used. Before you see the result, you also name ~10
    places that must be 3★; the new set must give 3★ to at least 8 of them, and to more than today's rule.
    And the places you called 3★ / 1–2★ / 0★ with the "Both" buttons: do they get those stars from the set? If
-   many "3★" places only get 2★, the 10% share is too tight for this event.
+   many "3★" places only get 2★, the 3★ share is too tight for this event.
 4. **Scores to stars** by the shares above, written to the Scores and Sets tabs. Phones pick it up at the
    next refresh.
 
