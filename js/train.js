@@ -42,8 +42,8 @@ function tinyMap(p) {
     const url = CONFIG.TILE_URL.replace("{s}", "a").replace("{z}", z).replace("{x}", tx + i).replace("{y}", ty + j).replace("{r}", "");
     tiles += `<img src="${url}" alt="" style="left:${Math.round((tx + i) * 256 - x)}px;top:${Math.round((ty + j) * 256 - y)}px">`;
   }
-  return `<div class="tmap"><div class="ttiles">${tiles}</div><span class="tpin" aria-hidden="true"></span>
-    <span class="tattr">© OpenStreetMap</span></div>`;
+  return `<span class="tmap"><span class="ttiles">${tiles}</span><span class="tpin" aria-hidden="true"></span>
+    <span class="tattr">© OpenStreetMap</span></span>`; // (spans: it sits inside the card's button)
 }
 
 // The place's logo: the `logo` column if filled in, else the icon of its website (Google's icon service).
@@ -65,13 +65,15 @@ function dropMissingLogos(root) {
 
 function cardHtml(p, type, where, side) {
   const logo = logoUrl(p);
-  return `<div class="tcard" data-side="${side}" role="button" tabindex="0" aria-label="${esc(p.name)} is better">
-    <div class="ticon" aria-hidden="true">${logo ? `<img class="tlogo" src="${esc(logo)}" alt="" width="40" height="40">` : ""}${ICON[p.type] || "📍"}</div>
-    <div class="tname">${esc(p.name)}</div>
-    <div class="tmeta">${esc(type?.label || p.type)}</div>
-    <div class="tmeta">${esc(p.address)}</div>
-    ${tinyMap(p)}
-    <div class="twhere">${esc(where)}</div>
+  return `<div class="tcard" data-side="${side}">
+    <button type="button" class="tpick"><span class="sr-only">Better: </span>
+      <span class="ticon" aria-hidden="true">${logo ? `<img class="tlogo" src="${esc(logo)}" alt="" width="40" height="40">` : ""}${ICON[p.type] || "📍"}</span>
+      <span class="tname">${esc(p.name)}</span>
+      <span class="tmeta">${esc(type?.label || p.type)}</span>
+      <span class="tmeta">${esc(p.address)}</span>
+      ${tinyMap(p)}
+      <span class="twhere">${esc(where)}</span>
+    </button>
     <button type="button" class="tq" data-unknown="${side}" aria-label="I don't know ${esc(p.name)}">?</button>
   </div>`;
 }

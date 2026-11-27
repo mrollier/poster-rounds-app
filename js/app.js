@@ -683,6 +683,7 @@ window.addEventListener("online", flush);
 
 // Take a (fresh or saved) bootstrap answer: reset results when the campaign changed, then merge.
 function useBoot(recentre) {
+  $("menu-btn").setAttribute("aria-label", settings?.role === "admin" ? "Menu" : "Settings"); // admins get a menu first
   const cleaned = cleanBoot(boot);
   boot = cleaned.boot;
   if (cleaned.skipped.length) console.warn("Places left out (fix them in the sheet):\n" + cleaned.skipped.join("\n"));

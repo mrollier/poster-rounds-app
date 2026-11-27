@@ -117,7 +117,7 @@ export function linksHtml(links, endLabel, total) {
 // One zone in the zones list.
 export function zoneRowHtml(z) {
   const left = z.total - z.done;
-  return `<li class="${left ? "" : "is-done"}"><div class="badge square" style="background:${left ? "var(--brand)" : "#8a8a8a"}">${left || "✓"}</div>
+  return `<li class="${left ? "" : "is-done"}"><div class="badge square zone">${left || "✓"}</div>
     <div><div class="stop-name">${esc(z.name)}</div>
       <div class="stop-meta">${z.total > 1 ? `${left}/${z.total} stops to do · about ${z.mins} min`
         : `Single stop · ${esc(z.stops[0]?.place.address || "")}`}</div>

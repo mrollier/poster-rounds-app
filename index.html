@@ -32,7 +32,7 @@
     <button type="button" id="menu-btn" class="icon-btn" aria-label="Settings">☰</button>
   </header>
   <button type="button" id="sync-btn" class="sync-btn" hidden></button>
-  <button type="button" id="zone-chip" class="zone-chip" aria-label="Back to all zones" hidden></button>
+  <button type="button" id="zone-chip" class="zone-chip" title="Back to all zones" hidden></button>
   <div id="nav" class="nav" role="status" aria-live="polite" hidden>
     <div class="nav-text"><span id="nav-to" class="nav-to"></span><span id="nav-left" class="nav-left" aria-live="off"></span></div>
     <span id="nav-acts"></span>
@@ -154,7 +154,7 @@
   </dialog>
 
   <!-- ☰ for admins: Settings, or train the stars. (Volunteers go straight to Settings.) -->
-  <dialog id="menu-dlg" class="dlg">
+  <dialog id="menu-dlg" class="dlg" aria-label="Menu">
     <form method="dialog">
       <div class="dlg-btns col">
         <button value="train" class="btn primary">Train the stars</button>
@@ -201,10 +201,10 @@
   </dialog>
 
   <!-- One dialog for every question (how many posters, a note, a reason). -->
-  <dialog id="dlg" class="dlg">
+  <dialog id="dlg" class="dlg" aria-labelledby="dlg-msg">
     <form method="dialog">
       <p id="dlg-msg"></p>
-      <input id="dlg-in" autocomplete="off">
+      <input id="dlg-in" autocomplete="off" aria-labelledby="dlg-msg">
       <div class="dlg-btns">
         <button value="ok" id="dlg-ok" class="btn primary">OK</button>
         <button value="cancel" id="dlg-no" class="btn" formnovalidate>Cancel</button>
