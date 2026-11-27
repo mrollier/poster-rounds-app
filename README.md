@@ -13,7 +13,7 @@ changes needed for that.
   - **All left:** every stop still to do on the map (no route); the card is the nearest one to you.
   - **On my way:** stops that fit an extra-time budget on a trip from A to B.
   - **Zones:** areas whose borders follow streets and water (Small / Medium / Large in Filters); finished
-    zones turn grey. Bike to the P on your side of a zone, walk its loop, bike on.
+    zones turn grey. Bike to the P in the middle of a zone, walk its loop, bike on.
 - **Posted ✓ / Can't ✗ / Undo**, shared with the team through the sheet. Ticks show at once and are sent
   in the background; offline they wait on the phone.
 - **Real routes** by bike or on foot, and **in-app navigation** to a stop: the route from where you are, with the
@@ -50,7 +50,7 @@ js/map.js        Leaflet: pins, lines, blue dot   js/location.js GPS
 js/router.js     real routes (OSRM server)        js/nav.js      in-app navigation
 js/ui.js         setup form, dialogs, toasts      js/addplace.js "+ Add place"
 sw.js, manifest.webmanifest, icons/   offline support and home-screen install
-data/            seed CSVs (tests only), racks-<city>.json, neighbourhoods-<city>.json
+data/            seed CSVs (tests only), racks-<city>.json, sectors-<city>.json
 backend/Code.gs  the Apps Script backend          tests/         node --test, plus a local mock backend
 tools/make-icons.js                   redraws the icons
 reference/       the old prototype (kept for reference only)
@@ -139,26 +139,20 @@ event's preset in Filters; a volunteer can still tick them, and they then count 
      are no zones). Download "Statistical sectors" as GeoJSON in Lambert 2008 (EPSG:3812) from
      https://statbel.fgov.be/en/open-data/statistical-sectors-2025, unzip, and run
      `node tools/make-sectors.js <the .geojson> <the city's NIS code> <city>` (Ghent: 44021). No libraries needed.
-   - Without the two files below Zones still work, but the bike spot falls back to the stop nearest to you
-     and zones are named after a sector.
    - `racks-<city>.json`: public bike racks, `{"source": "...", "city": "...", "racks": [[lat, lon], ...]}`.
-   - `neighbourhoods-<city>.json`: names for zones,
-     `{"source": "...", "city": "...", "places": [{"name": "...", "lat": 51.05, "lon": 3.72}, ...]}`.
+     Without it Zones still work, but the bike spot is simply the middle of the zone. It comes from
+     OpenStreetMap through the Overpass API (https://overpass-api.de; change the name and admin level to
+     match the city):
 
-   Both come from OpenStreetMap through the Overpass API (https://overpass-api.de; change the name and
-   admin level to match the city):
+     ```
+     [out:json][timeout:60];
+     area["boundary"="administrative"]["admin_level"="8"]["name"="Antwerpen"]->.c;
+     node(area.c)["amenity"="bicycle_parking"]["access"!~"^(private|customers|no)$"];
+     out;
+     ```
 
-   ```
-   [out:json][timeout:60];
-   area["boundary"="administrative"]["admin_level"="8"]["name"="Antwerpen"]->.c;
-   node(area.c)["place"~"^(suburb|quarter|neighbourhood|village|town)$"]["name"];   // neighbourhoods
-   out;
-   node(area.c)["amenity"="bicycle_parking"]["access"!~"^(private|customers|no)$"]; // bike racks
-   out;
-   ```
-
-   Run the two queries separately and save `lat`, `lon` (and `name`) in the formats above. The data is
-   © OpenStreetMap contributors (ODbL): keep the `source` line.
+     Save `lat` and `lon` in the format above. The data is © OpenStreetMap contributors (ODbL): keep the
+     `source` line.
 
 ## Notes and limits
 

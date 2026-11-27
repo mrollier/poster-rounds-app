@@ -11,7 +11,7 @@ shared data in a Google Sheet through an Apps Script web app.
 index.html, css/, js/, config.js     the app (no build step, ES modules)
 vendor/leaflet/                      Leaflet 1.9.4, vendored for offline use
 sw.js, manifest.webmanifest, icons/  PWA
-data/                                seed CSVs (tests/dev only), racks-<city>.json, neighbourhoods-<city>.json
+data/                                seed CSVs (tests/dev only), racks-<city>.json, sectors-<city>.json
 backend/Code.gs                      Apps Script backend (deployed by hand from the sheet)
 reference/prototype-index.html      the working prototype; port its algorithms, not its plumbing
 tests/                               node --test unit tests (no dependencies)

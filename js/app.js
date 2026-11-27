@@ -108,6 +108,7 @@ function render() {
   renderSync();
   syncPreset();
   const all = stops(), kept = all.filter(passes);
+  $("zone-chip").hidden = true; // shown again below only while a zone is open
   if (view.mode === "zones") return renderZones(kept, all);
   drawZones(null);
   if (view.mode === "way") renderWay(kept); else renderAll(kept);
@@ -240,7 +241,7 @@ function renderRoute(o) {
   if (!navigating()) drawRoute([o.start, ...remaining.slice(0, o.linkLimit).map(s => s.place), ...(withEnd ? [o.end] : [])], o.travel);
   if (o.fitKey !== fitted) {
     fitted = o.fitKey;
-    fitTo([o.start, ...remaining.slice(0, 12).map(s => s.place), ...(o.end ? [o.end] : [])].filter(Boolean));
+    fitTo(o.fitPoints || [o.start, ...remaining.slice(0, 12).map(s => s.place), ...(o.end ? [o.end] : [])].filter(Boolean));
   }
 }
 
@@ -254,16 +255,14 @@ function clearRoute(kept, pinExtra) {
 
 // ---------- Zones ----------
 
-let racks = null, labels = null, sectors = null, geoCity = null;
-// Bike racks, neighbourhood names and statistical sectors (the zones' building blocks). Without a
-// sectors file there are no zones; without the others zones still work.
+let racks = null, sectors = null, geoCity = null;
+// Bike racks and statistical sectors (the zones' building blocks). Without a sectors file there are no
+// zones; without racks the bike spot is simply the middle of the zone.
 async function loadCityFiles(cityName) {
   const get = f => fetch(f).then(r => (r.ok ? r.json() : null)).catch(() => null);
   const slug = cityName.toLowerCase();
-  const [r, n, sc] = await Promise.all([get(`data/racks-${slug}.json`), get(`data/neighbourhoods-${slug}.json`),
-    get(`data/sectors-${slug}.json`)]);
+  const [r, sc] = await Promise.all([get(`data/racks-${slug}.json`), get(`data/sectors-${slug}.json`)]);
   racks = (r?.racks || []).map(([lat, lon]) => ({ lat, lon }));
-  labels = n?.places || [];
   sectors = sc?.sectors || null;
   geoCity = cityName;
 }
@@ -284,7 +283,7 @@ function renderZones(kept, all) {
   const key = JSON.stringify([filterKey(), filters.zsize, kept.map(s => s.place.place_id)]);
   if (zonesSaved?.key !== key) {
     if (zonesSaved) { view.zone = null; saveView(); } // the zones changed: back to the overview
-    zonesSaved = zonesNow(kept, key, sectors, filters.zsize, labels);
+    zonesSaved = zonesNow(kept, key, sectors, filters.zsize);
   }
   const allById = byId(all), zs = zonesSaved.zones.map((z, i) => zoneState(z, i, allById));
   const z = zs.find(q => q.id === view.zone);
@@ -295,7 +294,7 @@ function renderZones(kept, all) {
   $("mode-box").innerHTML = `<div class="mode-line"><span><b>${zs.length}</b> zones · ${SIZE_NAME[filters.zsize]},
     about ${ZONE_MINUTES[filters.zsize]} min each</span></div>`;
   $("next").innerHTML = nextCardHtml(null, "", { finished: { text: zs.length
-    ? "Pick a zone: tap it on the map, or open it from the list. You get a bike spot (P) on your side of it and a walking loop."
+    ? "Pick a zone: tap it on the map, or open it from the list. You get a bike spot (P) in its middle and a walking loop."
     : "No stops with these filters." } });
   if (!navigating()) $("mini").textContent = `${zs.length} zones: tap one on the map`;
   $("stats").innerHTML = statsHtml([[`${stopsIn.filter(done).length}/${stopsIn.length}`, "stops done"],
@@ -328,6 +327,9 @@ function renderZone(kept, z) {
     <span><b>${esc(z.name)}</b>${single ? "" : ` · ${z.total} stops · loop about ${z.mins} min`}</span></div>
     ${single ? "" : `<button type="button" class="btn bike" data-ui="nav-park">Bike to the P${p.rack ? " (bike rack)" : ""}</button>`}`;
   drawZones([zoneShape(z, false)], openZone); // just this zone's border, under the stops' pins
+  // The way out, always in view on the map: "✕ Kouter · 5/8 left".
+  $("zone-chip").textContent = `✕ ${z.name} · ${z.total - z.done}/${z.total} left`;
+  $("zone-chip").hidden = false;
   renderRoute({ kept, route: single ? z.stops : orderStops(park, z.stops.map(s => s.place), park).map(p => z.stops.find(s => s.place === p)),
     scope: z.stops, start: single ? origin() : park, end: park,
     fromBikeSpot: !single,
@@ -337,10 +339,12 @@ function renderZone(kept, z) {
     endPins: single ? [] : [park],
     finished: single ? { text: "Done here. Pick the next zone." }
       : { text: "All stops in this zone done. Walk back to your bike.", label: "Walk back to the P", dest: { ...park, name: "your bike (P)" } },
-    fitKey: JSON.stringify(["zone", z.id]) });
+    fitKey: JSON.stringify(["zone", z.id]), fitPoints: z.rings.flat().map(([lat, lon]) => ({ lat, lon })) });
 }
 
 function openZone(id) { view.zone = id; saveView(); closeSheet(); render(); } // close the list: show the zone on the map
+function closeZone() { view.zone = null; saveView(); fitted = ""; render(); }
+$("zone-chip").onclick = closeZone;
 
 // ---------- Mode, filters and route controls ----------
 
@@ -414,7 +418,7 @@ $("sheet").addEventListener("click", e => {
   if (ui === "zone-open") openZone(el.dataset.zone);
   if (ui === "nav-end" && finishedDest) beginNav(finishedDest, routeTravel);
   if (ui === "nav-park" && zonePark) beginNav({ ...zonePark, name: "the P (bike spot)" }, "bike");
-  if (ui === "zone-back") { view.zone = null; saveView(); fitted = ""; render(); }
+  if (ui === "zone-back") closeZone();
 });
 $("sheet").addEventListener("change", e => {
   if (e.target.name === "budget") setWay({ budget: +e.target.value });

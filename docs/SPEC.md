@@ -159,24 +159,25 @@ Port the algorithms from the prototype (search for the function names):
 2. **On my way** (`computeWay`, `wayVariant`, `updateWay`): from A to B (my position, home, a
    tapped point, or a stop's pin), with an extra-time budget (5/15/30/60 min); cheapest insertion
    until the budget is used.
-3. **Zones** (`buildZones`, `zoneOutline`, `parkFor`, `walkLoop`, `drawZones`): areas whose borders follow
-   streets, railways and water; park the bike, walk a loop.
+3. **Zones** (`buildZones`, `compactness`, `zoneOutline`, `parkAt`, `walkLoop`, `drawZones`): areas whose borders
+   follow streets, railways and water; park the bike in the middle, walk a loop.
    - Building blocks: Statbel's statistical sectors (`data/sectors-<city>.json`, made once with
      `tools/make-sectors.js`). No sectors file: Zones says it isn't available for that city.
    - One setting, **Zone size** in Filters: Small / Medium / Large ≈ 20 / 45 / 90 min of walking + hanging.
    - Zones are built from **all** stops that pass the filters, done ones too, so borders don't move while the
-     team works. Each sector with stops starts as a zone; a sector with more work than target × 1.3 is cut in
-     two along the line halfway between its two farthest stops (recursively). Then the smallest zone under the
-     target joins its smallest touching neighbour while the result stays ≤ target × 1.3 (greedy region growing).
-     Sectors touch when they share a border point; an empty sector in between (a park, water) also connects.
-   - Zone name = nearest neighbourhood name (`data/neighbourhoods-<city>.json`), else the sector's name;
+     team works. Each sector with stops starts as a zone, whole: a busy sector is never cut up (Boekentoren
+     is one ~3-hour zone). The smallest zone under the target then joins a neighbour it shares a stretch of
+     border with (not just a corner, never across an empty sector), so every zone is one connected area;
+     of the neighbours that keep the work ≤ target × 1.3 it takes the roundest result (Polsby–Popper
+     4π·area / perimeter²).
+   - Zone name = the Statbel name of the sector holding most of its stops ("Kouter", "Boekentoren");
      a one-stop zone is named after its stop. Duplicate names get " 2", " 3".
    - Map: each zone a teal area with a border, **grey once every stop is done**; open stops as small dots;
      name and "3/7 done · 40 min" in the middle from zoom 15. No numbers. A tap in a zone opens it.
-   - Opening a zone: the bike spot (P) is the public bike rack (within 400 m of a stop, `data/racks-<city>.json`)
-     that makes biking there from where you are (GPS, else home) + walking the loop quickest; no rack: the
-     nearest stop. It's chosen once when you open the zone and kept until "← All zones". Then "Bike to the P",
-     the walking loop from the P (route line on foot), ending "back to the P". The open zone's border is dashed.
+   - Opening a zone: the map fits its outline (dashed); a chip under the top bar, "✕ Kouter · 5/8 left", goes
+     back to all zones. The bike spot (P) is the public bike rack (`data/racks-<city>.json`) nearest the
+     middle of the zone's stops, within 150 m, else the middle itself; the same for everyone. Then "Bike to
+     the P" and the walking loop from the P (route line on foot), ending "back to the P".
 
 ### 4.7 Results
 
@@ -236,5 +237,5 @@ base map, result-log export/import, KML/GeoJSON export, printing. Don't add acco
 
 - GitHub Pages from the `main` branch (root). HTTPS is required for geolocation and the service worker.
 - `README.md` in the repo: what it is, how to run locally (`python3 -m http.server`), how to deploy,
-  how to change the backend URL, how to add a city (Cities row + racks/neighbourhood files) and a
+  how to change the backend URL, how to add a city (Cities row + racks and sectors files) and a
   campaign (Campaigns row).

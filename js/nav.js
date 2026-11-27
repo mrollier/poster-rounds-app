@@ -1,5 +1,5 @@
 // In-app navigation to one place: the route line from where you are, and how far and how long it still is.
-// Kept simple on purpose: no turn-by-turn instructions (the card has a small Google Maps link for those).
+// Kept simple on purpose: no turn-by-turn instructions (a stop's map pop-up has a Google Maps icon for those).
 //   - a new route when you leave the line (more than 50 m off, twice in a row, at most every 20 s);
 //   - "you're there" within 30 m (or at the end of the route line, which stops at the street), from a fix
 //     that is accurate enough; "not there any more" again once you're clearly away (one wild fix can't stick);

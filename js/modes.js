@@ -28,8 +28,8 @@ export function planWay(kept, way) {
 
 // Zones from all stops that pass the filters, done ones included: ticking stops off doesn't move any
 // border, a finished zone just turns grey. size: "S", "M" or "L". Returns {key, zones}.
-export function zonesNow(kept, key, sectors, size, labels) {
-  return { key, zones: buildZones(kept.map(s => s.place), sectors, ZONE_MINUTES[size] || ZONE_MINUTES.M, labels) };
+export function zonesNow(kept, key, sectors, size) {
+  return { key, zones: buildZones(kept.map(s => s.place), sectors, ZONE_MINUTES[size] || ZONE_MINUTES.M) };
 }
 
 // A zone with its live stops and progress.

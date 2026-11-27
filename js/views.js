@@ -42,12 +42,14 @@ function popupHtml(s, extraButtons) {
     <div class="pop-btns">${isDone(st)
       ? btn("undo", p.place_id, "Undo ↺", "popbtn alt")
       : btn("posted", p.place_id, "Posted ✓", "popbtn") + btn("nope", p.place_id, "Can't ✗", "popbtn alt")}
-      ${btn("nav", p.place_id, "Navigate", "popbtn alt")}${extraButtons}</div></div>`;
+      ${btn("nav", p.place_id, "Navigate", "popbtn alt")}${extraButtons}
+      <a class="pop-gmaps" href="${gmapsUrl(p)}" target="_blank" rel="noopener" aria-label="Open in Google Maps" title="Google Maps">
+        <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><path d="M12 2a7 7 0 0 0-7 7c0 5 7 13 7 13s7-8 7-13a7 7 0 0 0-7-7zm0 9.5A2.5 2.5 0 1 1 12 6.5a2.5 2.5 0 0 1 0 5z" fill="currentColor"/></svg></a></div></div>`;
 }
 
 // The big yellow card at the bottom: the stop to do now. `finished`: {text, label, dest} when nothing is left
 // (dest: where "label" navigates to, e.g. home).
-export function nextCardHtml(s, heading, { travel = "bike", finished = null } = {}) {
+export function nextCardHtml(s, heading, { finished = null } = {}) {
   if (!s) {
     const f = finished || { text: "Nothing left to do with these filters." };
     return `<div class="next finished"><b>${esc(f.text)}</b>
@@ -63,7 +65,6 @@ export function nextCardHtml(s, heading, { travel = "bike", finished = null } = 
     ${resultLine(s) /* e.g. "Come back later · Thomas 14:05" and its note: why it was put off */}
     <div class="go-row">${btn("nav", p.place_id, "Navigate", "go navgo")}
       ${btn("posted", p.place_id, "Posted ✓", "go posted")}${btn("nope", p.place_id, "Can't ✗", "go nope")}</div>
-    <a class="gmaps" href="${gmapsUrl(p, { mode: travel })}" target="_blank" rel="noopener">Google Maps ↗</a>
   </div>`;
 }
 

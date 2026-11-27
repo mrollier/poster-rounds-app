@@ -169,8 +169,6 @@ button, input, select { font: inherit; color: inherit; }
 /* Navigate: the black button (on the card, and "Navigate home" when all is done). */
 .next .navgo { background: var(--brand); color: #fff; border-color: var(--brand); }
 .next.finished .navgo { width: 100%; min-height: 52px; margin-top: 10px; border-radius: 6px; font-weight: 800; font-size: 1.1rem; cursor: pointer; }
-.next .gmaps { display: flex; align-items: center; justify-content: flex-end; min-height: 44px; margin-bottom: -8px;
-               font-size: .9rem; font-weight: 700; color: var(--ink); }
 
 /* Navigation banner: under the top bar while you navigate. */
 .nav {
@@ -338,3 +336,14 @@ body:has(#nav:not([hidden])) .leaflet-top { top: calc(var(--bar-bottom) + var(--
 .sheet-toggle { position: sticky; top: -12px; z-index: 1; background: var(--paper); }
 /* Popup close button: a real tap target. */
 .leaflet-container a.leaflet-popup-close-button { width: 44px; height: 44px; font: 28px/44px system-ui, sans-serif; }
+
+/* While a zone is open: the way back to all zones, always in view under the top bar. */
+.zone-chip {
+  position: fixed; z-index: 1001; left: 50%; transform: translateX(-50%); top: calc(var(--bar-bottom) + 8px);
+  max-width: calc(100% - 24px); min-height: 44px; padding: 0 16px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  border: 0; border-radius: 22px; background: var(--brand); color: #fff; font-weight: 800; box-shadow: 0 2px 8px rgba(0,0,0,.3); cursor: pointer;
+}
+body:has(#nav:not([hidden])) .zone-chip { top: calc(var(--bar-bottom) + var(--nav-h, 76px) + 16px); }
+body:has(#zone-chip:not([hidden])) .sync-btn { top: calc(var(--bar-bottom) + 60px); }
+/* The Google Maps icon in a stop's pop-up (turn-by-turn, if you want it). */
+.pop-gmaps { display: inline-grid; place-items: center; width: 44px; height: 44px; margin-left: auto; color: var(--brand) !important; }
