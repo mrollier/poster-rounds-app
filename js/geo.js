@@ -1,8 +1,8 @@
 // Distances and travel times. Points are {lat, lon}. Pure functions, no DOM.
 
 // Streets don't go in straight lines: real routes in Ghent are about 1.3 × the straight-line distance.
-export const DETOUR = 1.3;
-export const SPEED_KMH = { bike: 15, walk: 4.5 };
+const DETOUR = 1.3;
+const SPEED_KMH = { bike: 15, walk: 4.5 };
 
 // Straight-line distance in metres (haversine formula: distance over the earth's surface).
 // Works on places straight from the sheet too (lat/lon as text): the + turns text into numbers.
@@ -21,8 +21,16 @@ export const minutes = (metres, mode) => metres / (SPEED_KMH[mode] * 1000 / 60);
 // Minutes spent at a stop: a city board is quick, a building means finding the desk or the notice board.
 export const stopMinutes = place => (place.type === "boards" ? 3 : 5);
 
-// Places come from the sheet as strings; this gives the {lat, lon} numbers.
-export const pt = place => ({ lat: +place.lat, lon: +place.lon });
+// The item of `list` nearest to `p`, within `max` metres, leaving out what `skip` says: {item, m} or null.
+export function nearest(p, list, { max = Infinity, skip = () => false } = {}) {
+  let best = null;
+  for (const item of list) {
+    if (skip(item)) continue;
+    const m = hav(p, item);
+    if (m <= max && (!best || m < best.m)) best = { item, m };
+  }
+  return best;
+}
 
 // ---------- Following a route line (navigation) ----------
 // A line is [[lat, lon], …]. Street-scale maths on a flat projection: metres east (x) and north (y).

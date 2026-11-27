@@ -1,10 +1,12 @@
 // Screens and small widgets: the setup form (first run + Settings) and the toast message.
 import { bootstrap } from "./data.js";
-import { pickPoint, cancelPick, setHome, showCity, esc } from "./map.js";
+import { pickPoint, cancelPick, setHome, showCity } from "./map.js";
+import { esc } from "./logic.js";
 import { currentPosition } from "./location.js";
-import { CONFIG } from "../config.js";
 
 export const $ = id => document.getElementById(id);
+// Two names for the same thing in the sheet, typed by hand ("Gent " / "gent").
+export const same = (a, b) => String(a ?? "").trim().toLowerCase() === String(b ?? "").trim().toLowerCase();
 
 // A short message at the top. ms = 0 keeps it until the next toast. `action`: {label, run} adds a button
 // (e.g. "Undo" or "Cancel") that runs `run` and closes the message.
@@ -27,8 +29,8 @@ const behind = () => [$("map"), document.querySelector(".bar"), $("sheet")];
 const cover = on => behind().forEach(el => { el.inert = on; });
 
 // Show the setup form and resolve {settings, boot} once the code is checked and the user taps Start/Save.
-// settings: {name, code, role, home: {lat, lon} | null, campaign}. First the code (it decides the campaign
-// and your role), then your name, picked from the names the team already uses, or typed.
+// settings: {name, code, role, home: {lat, lon} | null}. First the code (it decides the campaign and your
+// role), then your name, picked from the names the team already uses, or typed.
 // With a saved code it opens as "Settings"; `saved` is the last bootstrap answer, so Save without changes
 // needs no network.
 export function setup(settings, saved = null) {
@@ -49,11 +51,11 @@ export function setup(settings, saved = null) {
   showHome();
   const fail = msg => { err.textContent = msg; err.hidden = !msg; };
 
-  // The name: a list of the names already in the sheet + "Someone else…" (then a text box). An older
-  // backend sends no names: then just the text box.
+  // The name: a list of the names already in the sheet + "Someone else…" (then a text box). No names yet
+  // (a new sheet): just the text box.
   const SOMEONE = "*";
   const showNames = () => {
-    const names = boot.names || [], known = names.includes(settings.name);
+    const names = boot.names, known = names.includes(settings.name);
     $("f-name-pick").innerHTML = `<option value="">Choose your name…</option>`
       + names.map(n => `<option value="${esc(n)}">${esc(n)}</option>`).join("") + `<option value="${SOMEONE}">Someone else…</option>`;
     $("f-name-pick").value = known ? settings.name : settings.name ? SOMEONE : "";
@@ -61,21 +63,14 @@ export function setup(settings, saved = null) {
     showNameBox();
   };
   const showNameBox = () => {
-    const list = !!boot.names?.length, typed = !list || $("f-name-pick").value === SOMEONE;
+    const list = boot.names.length > 0, typed = !list || $("f-name-pick").value === SOMEONE;
     $("f-name-pick").hidden = $("f-name-pick-label").hidden = !list;
     $("f-name").hidden = $("f-name-label").hidden = !typed;
   };
   $("f-name-pick").onchange = () => { showNameBox(); if ($("f-name-pick").value === SOMEONE) $("f-name").focus(); };
-  const chosenName = () => (boot.names?.length && $("f-name-pick").value !== SOMEONE ? $("f-name-pick").value : $("f-name").value.trim());
+  const chosenName = () => (boot.names.length && $("f-name-pick").value !== SOMEONE ? $("f-name-pick").value : $("f-name").value.trim());
 
-  // The campaign list: only for an older backend that doesn't take the campaign from the code.
-  const showCampaigns = () => {
-    const list = boot.campaigns;
-    $("campaign-pick").hidden = !!boot.role || list.length < 2;
-    $("f-campaign").innerHTML = list.map(c =>
-      `<option value="${esc(c.campaign_id)}" ${c.campaign_id === boot.campaign_id ? "selected" : ""}>${esc(c.name)} (${esc(c.event_date)})</option>`).join("");
-  };
-  if (boot) { showCampaigns(); showNames(); }
+  if (boot) showNames();
 
   $("home-gps").onclick = async () => {
     fail(""); $("home-state").textContent = "Finding your location…";
@@ -102,27 +97,24 @@ export function setup(settings, saved = null) {
       if (!code) return fail("Please fill in the code.");
       const name = part2.hidden ? "" : chosenName();
       if (!part2.hidden && !name) return fail("Please choose or fill in your name.");
-      const wanted = part2.hidden ? (settings.campaign || CONFIG.DEFAULT_CAMPAIGN) : $("f-campaign").value;
       go.disabled = true; fail("");
       try {
-        // Check the code (and load the chosen campaign) with a bootstrap call; repeat only if something changed.
-        if (!boot || code !== checkedCode || (wanted && wanted !== boot.campaign_id)) {
+        // Check the code with a bootstrap call (it also loads the code's campaign); again only if it changed.
+        if (!boot || code !== checkedCode) {
           go.textContent = "Checking…";
-          boot = await bootstrap(code, wanted);
+          boot = await bootstrap(code);
           checkedCode = code;
           // centre on the campaign's city, so "Tap on the map" for home starts in the right place
-          const c = boot.campaigns.find(x => x.campaign_id === boot.campaign_id);
-          showCity(boot.cities.find(x => x.city === c?.city));
+          showCity(boot.cities.find(x => same(x.city, boot.campaigns[0].city)));
         }
       } catch (ex) {
         go.disabled = false; go.textContent = part2.hidden ? "Continue" : editing ? "Save" : "Start";
         return fail(ex.message);
       }
       go.disabled = false;
-      showCampaigns();
       if (part2.hidden) { part2.hidden = false; showNames(); go.textContent = "Start"; return; } // now: name, home
       form.hidden = true; cover(false);
-      resolve({ settings: { name, code, role: boot.role || "volunteer", home, campaign: boot.campaign_id }, boot });
+      resolve({ settings: { name, code, role: boot.role, home }, boot });
     };
   });
 }

@@ -1,6 +1,6 @@
 // The three route modes (spec §4.6). Pure functions, no DOM.
 // Points are anything with lat/lon (places from the sheet, {lat, lon} for home or my position).
-import { dist, hav, minutes, stopMinutes } from "./geo.js";
+import { dist, nearest, minutes, stopMinutes } from "./geo.js";
 
 // ---------- Ordering stops: nearest first, then 2-opt ----------
 
@@ -77,7 +77,7 @@ export function computeWay(from, to, candidates, budget, mode) {
     left.splice(left.indexOf(best.s), 1);
     extra += best.c;
   }
-  return { stops: seq.slice(1, -1), direct: Math.round(mins(from, to)), extra: Math.round(extra) };
+  return { stops: seq.slice(1, -1), extra: Math.round(extra) };
 }
 
 // ---------- Zones: areas that follow streets and water, built from statistical sectors ----------
@@ -89,15 +89,12 @@ export function computeWay(from, to, candidates, budget, mode) {
 export const ZONE_MINUTES = { S: 20, M: 45, L: 90 }; // Small / Medium / Large: walking + hanging time
 const key = p => `${p[0]},${p[1]}`;
 
-// Walking loop from the bike spot past every stop and back. Returns the stops in order and the metres.
-export function walkLoop(park, stops) {
-  const loop = orderStops(park, stops, park);
-  return { stops: loop, metres: tripTime(park, loop, park, "walk").metres };
-}
+// Metres of a walking loop from `start` past every stop and back.
+const loopMetres = (start, stops) => tripTime(start, orderStops(start, stops, start), start, "walk").metres;
 const avg = (xs, k) => xs.reduce((n, x) => n + +x[k], 0) / xs.length;
 const middle = stops => ({ lat: avg(stops, "lat"), lon: avg(stops, "lon") });
 // About how long a zone takes: a walking loop from its middle, plus the time at each stop.
-const zoneMinutes = stops => (stops.length < 2 ? 0 : minutes(walkLoop(middle(stops), stops).metres, "walk"))
+const zoneMinutes = stops => (stops.length < 2 ? 0 : minutes(loopMetres(middle(stops), stops), "walk"))
   + stops.reduce((n, s) => n + stopMinutes(s), 0);
 
 // Is the point inside these rings? Ray casting: count the borders crossed going east; odd = inside.
@@ -128,9 +125,8 @@ export function sectorOf(place, sectors) {
   const box = boxes(sectors), p = { lat: +place.lat, lon: +place.lon }; // the sheet gives text
   const hit = box.findIndex((b, i) => p.lat >= b.s && p.lat <= b.n && p.lon >= b.w && p.lon <= b.e && inside(p, sectors[i].rings));
   if (hit >= 0) return hit;
-  let best = 0;
-  box.forEach((b, i) => { if (hav(p, b.mid) < hav(p, box[best].mid)) best = i; });
-  return best;
+  const mids = box.map(b => b.mid);
+  return mids.indexOf(nearest(p, mids).item);
 }
 
 // How round a shape is (Polsby–Popper): 4π·area / perimeter². A circle is 1, a square about 0.79, a long
@@ -143,7 +139,7 @@ export function compactness(rings) {
   for (const r of rings) {
     let a = 0;
     r.forEach((p, i) => { const [x1, y1] = xy(p), [x2, y2] = xy(r[(i + 1) % r.length]); a += x1 * y2 - x2 * y1; });
-    area += Math.abs(a) / 2; // shoelace formula; sectors have no holes
+    area += Math.abs(a) / 2; // shoelace formula (Ghent's sectors have no holes; a hole would add, not subtract)
   }
   const perimeter = zoneOutline(rings).reduce((n, [p, q]) => { const [x1, y1] = xy(p), [x2, y2] = xy(q); return n + Math.hypot(x2 - x1, y2 - y1); }, 0);
   return perimeter ? (4 * Math.PI * area) / perimeter ** 2 : 0;
@@ -224,9 +220,7 @@ export function zoneOutline(rings) {
 // to every stop is short. No rack within 150 m: the middle itself. The same spot whoever opens the zone.
 const PARK_MAX = 150; // metres
 export function parkAt(stops, racks) {
-  const r5 = x => Math.round(x * 1e5) / 1e5;
-  const mid = { lat: r5(avg(stops, "lat")), lon: r5(avg(stops, "lon")) };
-  let best = null;
-  for (const r of racks) if (hav(mid, r) <= PARK_MAX && (!best || hav(mid, r) < hav(mid, best))) best = r;
+  const r5 = x => Math.round(x * 1e5) / 1e5, m = middle(stops), mid = { lat: r5(m.lat), lon: r5(m.lon) };
+  const best = nearest(mid, racks, { max: PARK_MAX })?.item;
   return best ? { lat: best.lat, lon: best.lon, rack: true } : { ...mid, rack: false };
 }

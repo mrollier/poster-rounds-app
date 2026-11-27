@@ -1,5 +1,5 @@
 // Public settings of the app. This file is in the public repo: never put a secret here.
-// (The team code and your home location live only in your phone's localStorage.)
+// (The campaign codes and your home location live only in the sheet and your phone's localStorage.)
 export const CONFIG = {
   // The Apps Script web-app URL (Deploy > Manage deployments, ends in /exec).
   // On ports 8787–8799 the app talks to the local mock backend instead (node tests/mock-server.js;
@@ -16,7 +16,4 @@ export const CONFIG = {
   // Fine for a handful of volunteers; no key. (The "driving" in the address is just OSRM's fixed word.)
   ROUTER_URL: "https://routing.openstreetmap.de/routed-{profile}/route/v1/driving/",
   ROUTER_ATTRIBUTION: 'Routes: <a href="https://routing.openstreetmap.de/about.html">FOSSGIS OSRM</a>',
-
-  // Optional: campaign_id to preselect when more than one campaign is active.
-  DEFAULT_CAMPAIGN: "",
 };

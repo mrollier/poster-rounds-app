@@ -81,6 +81,11 @@ export const FAILED = ["nope", "refused", "full", "closed"];
 
 // A stop is done for anything but "" (no result) and "later" (come back later).
 export const isDone = status => !!status && status !== "later";
+// A stop's result status ("" when nothing is saved yet). Stops: {place, stars, type, res}.
+export const statusOf = s => s.res?.status || "";
+
+// Text from the sheet goes into HTML only through this, so a name like "<b>" can't break the page.
+export const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 
 // City boards are cleaned, so their result is per cleaning cycle; everything else per campaign ("").
 export const cycleFor = (place, boardCycle) => (place.type === "boards" ? boardCycle : "");

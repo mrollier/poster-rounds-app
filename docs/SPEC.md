@@ -176,7 +176,7 @@ The algorithms are in `js/routes.js` and `js/modes.js` (function names in bracke
 2. **On my way** (`computeWay`, `wayVariant`, `updateWay`): from A to B (my position, home, a
    tapped point, or a stop's pin), with an extra-time budget (5/15/30/60 min); cheapest insertion
    until the budget is used.
-3. **Zones** (`buildZones`, `compactness`, `zoneOutline`, `parkAt`, `walkLoop`, `drawZones`): areas whose borders
+3. **Zones** (`buildZones`, `compactness`, `zoneOutline`, `parkAt`, `zoneMinutes`, `drawZones`): areas whose borders
    follow streets, railways and water; park the bike in the middle, walk a loop.
    - Building blocks: Statbel's statistical sectors (`data/sectors-<city>.json`, made once with
      `tools/make-sectors.js`). No sectors file: Zones says it isn't available for that city.

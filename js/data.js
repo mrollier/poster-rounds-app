@@ -10,7 +10,7 @@ export const store = {
 };
 
 // An error with a message the user can read.
-//   offline: no connection (try again later)    stop: wrong/missing team code (fix settings first)
+//   offline: no connection (try again later)    stop: wrong code or closed campaign (fix settings first)
 export class BackendError extends Error {
   constructor(msg, { offline = false, stop = false } = {}) { super(msg); this.offline = offline; this.stop = stop; }
 }
@@ -19,8 +19,6 @@ export class BackendError extends Error {
 const FRIENDLY = {
   "wrong code": "That code is not right. Check it with the organiser (capitals matter).",
   "campaign closed": "This campaign is closed. Ask the organiser for the code of the current one.",
-  "wrong team code": "That team code is not right. Check it with the organiser.", // (the backend before codes per campaign)
-  "TEAM_CODE not set on the server": "The server is not set up yet (no team code). Tell the organiser.",
 };
 
 async function call(url, options) {
@@ -55,11 +53,12 @@ const postJSON = body => call(new URL(CONFIG.APPS_SCRIPT_URL, location.href), {
   method: "POST", headers: { "Content-Type": "text/plain;charset=utf-8" }, body: JSON.stringify(body),
 });
 
-// Everything the app needs: campaigns, cities, types, places and results of one campaign.
-export const bootstrap = (code, campaign) => getJSON({ action: "bootstrap", code, campaign });
+// Everything the app needs for the code's campaign: the campaign, your role, known names, cities, types,
+// places, results, the learned star set and overrides (and, for admins, the swipes).
+export const bootstrap = code => getJSON({ action: "bootstrap", code });
 
 // Only the results changed after `since` (an ISO time). Cheap: used for polling.
-export const fetchResults = (code, campaign, since) => getJSON({ action: "results", code, campaign, since });
+export const fetchResults = (code, since) => getJSON({ action: "results", code, since });
 
-// Save one result. body: {action: "result", campaign_id, place_id, cycle, status?, posters?, note?}
+// One write: a result, a new place, a swipe or an override (body.action says which).
 export const postWrite = (code, name, body) => postJSON({ ...body, code, name });

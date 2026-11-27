@@ -1,24 +1,18 @@
 // "+ Add place": pick the position (my GPS fix or a tap on the map), fill a short form, and hand back
 // the request for the backend. Sending goes through the same outbox as results, so it works offline too.
 import { $, toast, ask } from "./ui.js";
-import { pickPoint, cancelPick, esc } from "./map.js";
+import { pickPoint, cancelPick } from "./map.js";
+import { esc } from "./logic.js";
 import { lastPosition } from "./location.js";
 import { stars, eventWeights, starText } from "./logic.js";
 import { seg } from "./views.js";
-import { hav } from "./geo.js";
+import { nearest } from "./geo.js";
 
 const POOR_FIX = 50; // metres: warn when the GPS position is this uncertain
 const INSIDE = 60;   // metres: a place this close may be the building you're in (a faculty, a library)
 
-// The place nearest to `p` within INSIDE metres, or null.
-function nearestPlace(p, places) {
-  let best = null;
-  for (const q of places) {
-    if (q.type === "boards") continue; // a city board is outdoors: nothing to be "inside" of
-    if (hav(p, q) <= INSIDE && (!best || hav(p, q) < hav(p, best))) best = q;
-  }
-  return best;
-}
+// The place nearest to `p` within INSIDE metres, or null. (A city board is outdoors: nothing to be "inside" of.)
+const nearestPlace = (p, places) => nearest(p, places, { max: INSIDE, skip: q => q.type === "boards" })?.item || null;
 
 async function choosePosition() {
   const here = lastPosition();

@@ -128,3 +128,12 @@ test("parkAt: the bike rack nearest the middle, else the middle", () => {
   assert.deepEqual(parkAt(st, [{ lat: 51.0177, lon: 3.71 }]), { lat: 51.015, lon: 3.71, rack: false }); // 300 m away
   assert.deepEqual(parkAt(st, []), { lat: 51.015, lon: 3.71, rack: false });
 });
+
+test("nearest: the closest item within the limit, skipping what it's told to", async () => {
+  const { nearest } = await import("../js/geo.js");
+  const p = { lat: 51.05, lon: 3.72 }, a = { lat: 51.0501, lon: 3.72, type: "boards" }, b = { lat: 51.0505, lon: 3.72, type: "sci" };
+  assert.equal(nearest(p, [b, a]).item, a);
+  assert.equal(nearest(p, [b, a], { skip: q => q.type === "boards" }).item, b);
+  assert.equal(nearest(p, [b], { max: 20 }), null); // b is ~55 m away
+  assert.ok(Math.abs(nearest(p, [a]).m - 11.1) < 0.2);
+});

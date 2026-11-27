@@ -3,7 +3,7 @@
 // sessions as long as they have time for. The swipes go to the sheet; a developer then turns them into
 // stars for every place (README "How the stars are made"). The maths is in js/rank.js.
 import { $, toast } from "./ui.js";
-import { esc } from "./map.js";
+import { esc } from "./logic.js";
 import { store } from "./data.js";
 import { fitBT, chooseDeck, quality, historyFromRows, nextPair, LINES, comparisonsIn as comparisons, unknownIn as unknown } from "./rank.js";
 import { CONFIG } from "../config.js";

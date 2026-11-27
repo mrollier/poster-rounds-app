@@ -1,10 +1,8 @@
 // HTML for the next-stop card, the list rows and the pin popups. Only builds strings; app.js wires the buttons.
 // A "stop" here is {place, stars, type: {label, color}, res} where res is the latest result row (or null).
-// Buttons carry data-act="posted|nope|undo|note" and data-id="<place_id>"; one click handler serves them all.
-import { esc } from "./map.js";
-import { isDone, FAILED, STATUS_LABEL, gmapsPlaceUrl, starText } from "./logic.js";
-
-const statusOf = s => s.res?.status || "";
+// Buttons carry data-act (posted, nope, undo, note, nav, from, to, ovr; the list's menu: status) and
+// data-id="<place_id>"; one click handler in app.js serves them all.
+import { esc, isDone, statusOf, FAILED, STATUS_LABEL, gmapsPlaceUrl, starText } from "./logic.js";
 const plural = (n, word) => `${esc(n)} ${word}${+n === 1 ? "" : "s"}`;
 const accessText = p => (p.access === "ask" ? "ask first" : "hang freely");
 const clock = iso => (Number.isNaN(Date.parse(iso)) ? "" : new Date(iso).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" }));
@@ -50,7 +48,7 @@ function popupHtml(s, extraButtons) {
       <a class="popbtn alt" href="${gmapsPlaceUrl(p)}" target="_blank" rel="noopener">Google Maps ↗</a>${extraButtons}${popupExtra(s)}</div></div>`;
 }
 
-// The big yellow card at the bottom: the stop to do now. `finished`: {text, label, dest} when nothing is left
+// The big card at the bottom: the stop to do now. `finished`: {text, label, dest} when nothing is left
 // (dest: where "label" navigates to, e.g. home).
 export function nextCardHtml(s, heading, { finished = null } = {}) {
   if (!s) {
@@ -104,7 +102,7 @@ export const statsHtml = stats => stats.map(([b, t]) => `<div><b>${esc(b)}</b><s
 export const seg = (name, options, current) => options.map(([v, l]) =>
   `<label><input type="radio" name="${name}" value="${esc(v)}" ${String(v) === String(current) ? "checked" : ""}><span>${esc(l)}</span></label>`).join("");
 
-// Google Maps links for a trip cut into parts. links: [{from, to, url}], `last` = label of the trip's end.
+// Google Maps links for a trip cut into parts. links: [{from, to, url}], `endLabel` = label of the trip's end.
 export function linksHtml(links, endLabel, total) {
   return links.map(l => {
     const toEnd = endLabel && l.to === total;

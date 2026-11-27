@@ -58,7 +58,7 @@
     </div>
     <div class="sheet-body" id="sheet-body">
       <button type="button" id="sheet-toggle" class="sheet-toggle" aria-expanded="false" aria-controls="sheet-more">
-        <span class="grip" aria-hidden="true"></span><span id="sheet-toggle-text" class="sr-only">Show all stops</span><span id="mini" class="mini"></span>
+        <span class="grip" aria-hidden="true"></span><span id="sheet-toggle-text" class="sr-only">Show the list</span><span id="mini" class="mini"></span>
       </button>
       <div id="mode-box" class="mode-box"></div>
       <div id="next"></div>
@@ -75,7 +75,7 @@
 
   <div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
 
-  <!-- First run and Settings: the same form. Part 2 (home, campaign) opens once the team code is checked. -->
+  <!-- First run and Settings: the same form. Part 2 (name, home) opens once the code is checked. -->
   <form id="setup" class="setup" hidden novalidate>
     <h1><img class="logo" src="icons/ea-logo.svg" alt="" width="24" height="36"> Poster map</h1>
     <p class="muted">Where to hang posters, in which order, and what the team has already done.</p>
@@ -101,10 +101,6 @@
         </div>
       </fieldset>
 
-      <div id="campaign-pick" hidden>
-        <label for="f-campaign">Campaign</label>
-        <select id="f-campaign" name="campaign"></select>
-      </div>
     </div>
 
     <p id="setup-error" class="error" role="alert" hidden></p>
@@ -151,7 +147,7 @@
       <p id="a-prio" class="a-prio"></p>
       <p id="a-error" class="error" role="alert" hidden></p>
       <div class="dlg-btns">
-        <button value="ok" class="btn primary" id="a-save">Save place</button>
+        <button value="ok" class="btn primary">Save place</button>
         <button value="cancel" class="btn" formnovalidate>Cancel</button>
       </div>
     </form>
@@ -176,7 +172,7 @@
     </div>
     <div id="train-budget">
       <p>You'll see two places side by side. Swipe towards the one where a poster for <b id="train-event"></b>
-        brings more of the right people (or tap it). Not sure? "About the same". Don't know a place? Its "?".</p>
+        brings more of the right people (or tap it). No winner? Say how good both are. Don't know a place? Its "?".</p>
       <p class="hint" id="train-left-total"></p>
       <p><b>How much time do you have?</b></p>
       <div class="btns train-mins">

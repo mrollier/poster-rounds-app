@@ -3,7 +3,7 @@
 <meta charset="utf-8"><title>seed</title><link rel="icon" href="data:,">
 <script type="module">
   const boot = await (await fetch("/exec?action=bootstrap&code=secret")).json();
-  localStorage.setItem("settings", JSON.stringify({ name: "Lighthouse", code: "secret", home: null, campaign: boot.campaign_id }));
+  localStorage.setItem("settings", JSON.stringify({ name: "Lighthouse", code: "secret", role: boot.role, home: null }));
   localStorage.setItem("boot", JSON.stringify(boot));
   location.replace("/");
 </script>

@@ -1,7 +1,7 @@
 // The phone's location (GPS). Browsers share it only on https:// pages or on http://localhost.
 
 // Plain-English messages for the ways geolocation can fail.
-export function geoErrorText(err) {
+function geoErrorText(err) {
   if (!window.isSecureContext) return "Location only works when the app is opened over https://.";
   if (err?.code === 1) {
     return "Location is blocked for this site. iPhone: Settings > Privacy & Security > Location Services: " +
@@ -33,7 +33,7 @@ export const lastPosition = () => last; // {lat, lon, accuracy, at} or null
 function start() {
   if (watchId !== null || !navigator.geolocation) return;
   watchId = navigator.geolocation.watchPosition(
-    p => { last = { ...toPos(p), at: Date.now() }; handlers.onPosition(last); },
+    p => { last = toPos(p); handlers.onPosition(last); },
     err => {
       if (err.code === 1) stop(); // denied: asking again won't help until the user changes the setting
       handlers.onError(err.code, geoErrorText(err));

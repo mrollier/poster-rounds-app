@@ -166,7 +166,7 @@ button, input, select { font: inherit; color: inherit; }
   font-weight: 800; font-size: min(1rem, 4.4vw); cursor: pointer; /* grows with large text only while it fits */
 }
 .go-row .nope { font-size: min(.95rem, 4.2vw); color: var(--warn); border-color: var(--warn); }
-/* Navigate: the black button (on the card, and "Navigate home" when all is done). */
+/* Navigate: the teal button (on the card, and "Navigate home" when all is done). */
 .next .navgo { background: var(--brand); color: #fff; border-color: var(--brand); }
 .next.finished .navgo { width: 100%; min-height: 52px; margin-top: 10px; border-radius: 6px; font-weight: 800; font-size: 1.1rem; cursor: pointer; }
 
@@ -215,7 +215,10 @@ li.is-later .badge { border-style: dashed; }
 .pin.faded { opacity: .55; }
 .pin.later { border-style: dashed; }
 .pop { font-size: 15px; line-height: 1.35; }
-.pop-btns { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+/* Pop-up buttons two by two (Posted | Can't, Navigate | Google Maps), so the pop-up stays short. */
+.pop-btns { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; margin-top: 8px; }
+.pop-btns > .popbtn { justify-content: center; padding: 0 6px; }
+.pop-btns > .ovr { grid-column: 1 / -1; }
 .popbtn {
   display: inline-flex; align-items: center; min-height: 44px; padding: 0 12px; border: 2px solid var(--ink);
   border-radius: 6px; background: var(--accent); color: var(--ink) !important; font-weight: 700; font-size: 15px;
@@ -379,6 +382,7 @@ body:has(#zone-chip:not([hidden])) .sync-btn { top: calc(var(--bar-bottom) + 60p
 #train-undo { flex: 0 1 auto; }
 /* Admin: set a place's stars from its pop-up. */
 .ovr { margin-top: 8px; font-size: .9rem; font-weight: 700; }
+.ovr-btns { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 4px; }
 .ovr .popbtn { min-width: 44px; justify-content: center; padding: 0 8px; }
 .ovr .popbtn.on { background: var(--brand); color: #fff !important; border-color: var(--brand); }
 .train-q { margin: 6px 0 0; font-weight: 800; }

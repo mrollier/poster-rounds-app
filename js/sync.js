@@ -34,7 +34,7 @@ export function withPending(map, items, myName) {
 // The outbox. Writes are sent one at a time, oldest first, so the sheet ends up in the order you tapped.
 //   load()/save(items)  keep the list on the phone
 //   send(body)          posts one write; throws {offline: true} when there is no connection,
-//                       {stop: true} when sending makes no sense now (e.g. wrong team code), else a refusal
+//                       {stop: true} when sending makes no sense now (e.g. a wrong code), else a refusal
 //   onSent(item, reply) / onRefused(item, error)
 export function createQueue({ load, save, send, onSent, onRefused }) {
   let items = load() || [];

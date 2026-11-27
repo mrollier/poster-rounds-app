@@ -1,15 +1,14 @@
 // Entry point: holds the app's state, wires the buttons, and keeps results in sync with the team.
 import { store, bootstrap, fetchResults, postWrite, BackendError } from "./data.js";
 import { initMap, showCity, drawPins, closePopup, setHome, setMe, setFollow, onUserPan, pickPoint, cancelPick, drawRoute, fitTo,
-  drawZones, zoneLabelsFromZoom, esc } from "./map.js";
+  drawZones, zoneLabelsFromZoom } from "./map.js";
 import { watchWhileVisible, restartWatching, lastPosition } from "./location.js";
-import { setup, toast, ask, $ } from "./ui.js";
-import { placeStars, eventTypes, eventWeights, cleanBoot, num, cycleStart, brusselsToday, cycleFor, resultKey, STATUS_LABEL, chunkLinks } from "./logic.js";
+import { setup, toast, ask, $, same } from "./ui.js";
+import { placeStars, eventTypes, eventWeights, cleanBoot, num, cycleStart, brusselsToday, cycleFor, resultKey, STATUS_LABEL, chunkLinks, esc, statusOf } from "./logic.js";
 import { mergeResults, withPending, createQueue } from "./sync.js";
-import { dist, minutes } from "./geo.js";
+import { dist, minutes, nearest } from "./geo.js";
 import { tripTime, orderStops, parkAt, sectorOf, ZONE_MINUTES } from "./routes.js";
 import { openTrain } from "./train.js";
-import { hav } from "./geo.js";
 import { computeWayIds, planWay, zonesNow, zoneState, byId, done } from "./modes.js";
 import { addPlace } from "./addplace.js";
 import { startNav, stopNav, navUpdate, navigating, navTarget, onNavChange } from "./nav.js";
@@ -18,7 +17,7 @@ import { pinOf, nextCardHtml, rowHtml, statsHtml, seg, linksHtml, zoneRowHtml, t
 initMap($("map"));
 zoneLabelsFromZoom(15);
 
-let settings = store.get("settings", null); // {name, code, home, campaign}
+let settings = store.get("settings", null); // {name, code, role, home}
 let boot = store.get("boot", null);         // last bootstrap answer, so the app opens without network
 // Results as the server last told us: {campaign_id, map: {key: row}, serverTime}
 let synced = store.get("results", null);
@@ -28,8 +27,7 @@ const saveResults = () => store.set("results", synced);
 
 // ---------- Derived data ----------
 
-const campaign = () => boot?.campaigns.find(c => c.campaign_id === boot.campaign_id) || null;
-const same = (a, b) => String(a ?? "").trim().toLowerCase() === String(b ?? "").trim().toLowerCase();
+const campaign = () => boot?.campaigns[0] || null; // the code's campaign (the backend sends just that one)
 const city = () => boot.cities.find(c => same(c.city, campaign()?.city));
 // The current board-cleaning cycle (a date), worked out fresh each time: the app may stay open past midnight.
 const boardCycle = () => cycleStart(city()?.board_cleaning, brusselsToday());
@@ -38,7 +36,7 @@ const keyOf = place => resultKey({ campaign_id: boot.campaign_id, place_id: plac
 // The kind of event we plan for: picked in Filters, else the campaign's own, else the first the sheet knows.
 const events = () => eventTypes(boot.types);
 // Matched without caring about case or spaces: "poetry " in the sheet still means "Poetry".
-const evMatch = e => events().find(x => x.trim().toLowerCase() === String(e ?? "").trim().toLowerCase());
+const evMatch = e => events().find(x => same(x, e));
 const currentEvent = () => [filters.event, campaign()?.event_type, events()[0]].map(evMatch).find(Boolean) || "";
 
 // The learned star set (from swipes, see README "How the stars are made"): only for the campaign's own
@@ -77,12 +75,10 @@ function origin() {
 // ---------- View state (saved on this phone) ----------
 
 const view = { mode: "all", zone: null, ...store.get("view", {}) };
-delete view.zonePark; // older versions remembered a bike spot per zone
 if (!["all", "way", "zones"].includes(view.mode)) view.mode = "all";
 const filters = { min: "1", skip: [], skipFor: null, event: null, travel: "bike", zsize: "M", ...store.get("filters", {}) };
-let way = { budget: 15, ...store.get("way", {}) };       // On my way: {from, to, budget, ids, extra, direct}
+let way = { budget: 15, ...store.get("way", {}) };       // On my way: {from, to, budget, ids, extra}
 let zonesSaved = null;                                   // Zones: {key, zones}, rebuilt in a few ms when needed
-try { localStorage.removeItem("zones"); } catch { /* older versions kept zones on the phone */ }
 let fitted = "";                                         // re-zoom the map only when the view changes
 let routeTravel = "bike", finishedDest = null, zonePark = null; // for the Navigate buttons
 const saveView = () => { store.set("view", view); store.set("filters", filters); };
@@ -145,7 +141,7 @@ function renderAll(kept) {
   const next = open.find(s => !s.res?.status) || open[0] || null;
 
   $("mode-box").innerHTML = `<div class="mode-line"><span><b>${open.length}</b> to do · nearest to ${homeLabel()}</span></div>`;
-  $("next").innerHTML = nextCardHtml(next, `Nearest stop · ${open.length} left`, { travel: filters.travel,
+  $("next").innerHTML = nextCardHtml(next, `Nearest stop · ${open.length} left`, {
     finished: !kept.length ? { text: "No stops match these filters. Change them with the filter button (top right)." }
       : home ? { text: "All stops done. On to home!", label: "Navigate home", dest: finishedDest }
       : { text: "All stops done with these filters. Well done!" } });
@@ -200,7 +196,7 @@ function renderWay(kept) {
     return;
   }
   renderRoute({ kept, route: plan.route, scope: plan.route, start: way.from, end: way.to, endLabel: "your destination",
-    travel: filters.travel, heading: (k, n) => `Next stop on your way · ${k} of ${n}`, linkLimit: 99,
+    travel: filters.travel, heading: (k, n) => `Next stop on your way · ${k} of ${n}`,
     title: "Stops on the way, in order", showOthers: true, pinExtra: wayButtons,
     endPins: [{ ...way.from, label: "A" }, { ...way.to, label: "B" }],
     finished: { text: plan.route.length ? "All stops on the way done. On to your destination!"
@@ -216,32 +212,27 @@ function renderRoute(o) {
   routeTravel = o.travel;
   finishedDest = o.finished.dest || null;
   const remaining = o.route.filter(s => !done(s));
-  const st = s => s.res?.status || "";
-  const next = remaining.find(s => !st(s)) || remaining.find(s => st(s) === "later");
+  const next = remaining.find(s => !statusOf(s)) || remaining.find(s => statusOf(s) === "later");
   const k = next ? o.route.indexOf(next) + 1 : 0;
-  $("next").innerHTML = nextCardHtml(next, o.heading(k, o.route.length), { travel: o.travel, finished: o.finished });
+  $("next").innerHTML = nextCardHtml(next, o.heading(k, o.route.length), { finished: o.finished });
   if (!navigating()) $("mini").textContent = next ? `${distText(dist(lastPosition() || o.start, next.place))} · ${next.place.name}` : o.finished.text;
 
   // Times: from where I am now (or the trip's start) through what's left. A zone's walking loop
   // always counts from the bike spot: you bike there first.
-  const from = (o.fromBikeSpot ? o.start : lastPosition() || o.start) || o.start;
+  const from = o.fromBikeSpot ? o.start : lastPosition() || o.start;
   const trip = tripTime(from, remaining.map(s => s.place), o.end, o.travel);
   const eta = new Map(remaining.map((s, i) => [s, trip.arrive[i]]));
   const doneN = o.scope.filter(done).length;
   $("stats").innerHTML = statsHtml([
     [`${doneN}/${o.scope.length}`, "stops done"],
-    [`${o.scope.reduce((n, s) => n + (st(s) === "posted" ? +s.res.posters || 0 : 0), 0)}`, "posters hung"],
+    [`${o.scope.reduce((n, s) => n + (statusOf(s) === "posted" ? +s.res.posters || 0 : 0), 0)}`, "posters hung"],
     [(trip.metres / 1000).toFixed(1), "km to go"],
     [`${Math.floor(trip.minutes / 60)}:${String(Math.round(trip.minutes % 60)).padStart(2, "0")}`, "hours to go"],
   ]);
 
-  // Google Maps: the next stops in parts of 4; the trip's end is added once it's within reach.
-  const targets = remaining.slice(0, o.linkLimit).map(s => s.place);
-  const withEnd = o.end && remaining.length <= o.linkLimit;
-  if (withEnd) targets.push(o.end);
-  const links = chunkLinks(targets, o.travel);
-  $("links").innerHTML = linksHtml(links, withEnd ? o.endLabel : null, targets.length)
-    + (o.linkLimit < remaining.length ? `<span class="muted">Later parts appear as you tick stops off.</span>` : "");
+  // Google Maps: what's left of the trip (and its end) in parts of 4 stops.
+  const targets = [...remaining.map(s => s.place), ...(o.end ? [o.end] : [])];
+  $("links").innerHTML = linksHtml(chunkLinks(targets, o.travel), o.end ? o.endLabel : null, targets.length);
 
   $("list-title").textContent = o.title;
   listButton(`All ${o.route.length} stops`);
@@ -256,7 +247,7 @@ function renderRoute(o) {
   drawPins(pins);
   // The line shows the planned trip from its start (not from where I am now): it stays put while I move,
   // so the route server isn't asked again every few steps and the line doesn't flicker.
-  if (!navigating()) drawRoute([o.start, ...remaining.slice(0, o.linkLimit).map(s => s.place), ...(withEnd ? [o.end] : [])], o.travel);
+  if (!navigating()) drawRoute([o.start, ...targets], o.travel);
   if (o.fitKey !== fitted) {
     fitted = o.fitKey;
     fitTo(o.fitPoints || [o.start, ...remaining.slice(0, 12).map(s => s.place), ...(o.end ? [o.end] : [])].filter(Boolean));
@@ -303,7 +294,7 @@ function renderZones(kept, all) {
   // An open zone belongs to one set of zones (ids are just positions): if the zones changed since,
   // or it was saved by an older version, go back to the overview rather than open some other zone.
   if (view.zone && view.zoneKey !== key) { view.zone = null; saveView(); }
-  const allById = byId(all), zs = zonesSaved.zones.map((z, i) => zoneState(z, i, allById));
+  const allById = byId(all), zs = zonesSaved.zones.map(z => zoneState(z, allById));
   const z = zs.find(q => q.id === view.zone);
   if (z) return renderZone(kept, z);
 
@@ -352,7 +343,7 @@ function renderZone(kept, z) {
     scope: z.stops, start: single ? origin() : park, end: park,
     fromBikeSpot: !single,
     endLabel: "back to the P", travel: single ? filters.travel : "walk",
-    heading: (k, n) => (single ? `Single stop · ${z.name}` : `Stop ${k} of ${n} · ${z.name}`), linkLimit: 99,
+    heading: (k, n) => (single ? `Single stop · ${z.name}` : `Stop ${k} of ${n} · ${z.name}`),
     title: single ? "The stop" : "Walking loop, in order (back to the P at the end)", showOthers: false,
     endPins: single ? [] : [park],
     finished: single ? { text: "Done here. Pick the next zone." }
@@ -378,7 +369,7 @@ function setWay(patch) {
   render();
 }
 
-// Filters changed: routes that depend on them recalculate (Zones and Everything left notice it by their key).
+// Filters changed: routes that depend on them recalculate (Zones and All left notice it by their key).
 function filtersChanged() {
   saveView();
   if (way.from && way.to) setWay({}); else render();
@@ -548,7 +539,7 @@ async function flush() {
     retryTimer = setTimeout(flush, retryDelay);
     retryDelay = Math.min(retryDelay * 2, 60000);
   } else if (r === "done") retryDelay = 2000;
-  else if (r === "stopped") toast("Changes can't be sent: the team code is not right. Check it in Settings (☰).");
+  else if (r === "stopped") toast("Changes can't be sent: the code is not right. Check it in Settings (☰).");
   renderSync();
 }
 
@@ -619,7 +610,7 @@ async function onAction(e) {
 setPopupExtra(s => {
   if (settings?.role !== "admin") return "";
   const cur = overrides()[s.place.place_id];
-  return `<div class="ovr">Stars for ${esc(currentEvent() || "this event")}:<div class="pop-btns">${[0, 1, 2, 3].map(n =>
+  return `<div class="ovr">Stars for ${esc(currentEvent() || "this event")}:<div class="ovr-btns">${[0, 1, 2, 3].map(n =>
     `<button type="button" class="popbtn alt${cur === n ? " on" : ""}" data-act="ovr" data-stars="${n}" data-id="${esc(s.place.place_id)}"
       aria-label="${n} stars">${n}</button>`).join("")}${cur === undefined ? ""
       : `<button type="button" class="popbtn alt" data-act="ovr" data-stars="" data-id="${esc(s.place.place_id)}">Clear</button>`}</div></div>`;
@@ -664,7 +655,7 @@ async function poll() {
     // Ask from a minute before the last answer: a write that landed while that answer was being made
     // could otherwise slip through. Getting a row twice is harmless (last write wins).
     const since = new Date(Date.parse(synced.serverTime) - 60000).toISOString();
-    const r = await fetchResults(settings.code, boot.campaign_id, since);
+    const r = await fetchResults(settings.code, since);
     synced.serverTime = r.serverTime;
     if (mergeResults(synced.map, r.results)) render();
     saveResults();
@@ -712,9 +703,8 @@ async function openSettings() {
 // Fetch fresh data in the background; the saved copy is already on screen.
 async function refresh(loud = false) { // loud: say so when offline (only at start, not every 5 minutes)
   try {
-    boot = await bootstrap(settings.code, settings.campaign);
-    settings.campaign = boot.campaign_id;
-    settings.role = boot.role || "volunteer"; // the organiser may change a code's role in the sheet
+    boot = await bootstrap(settings.code);
+    settings.role = boot.role; // the organiser may change a code's role in the sheet
     save();
     useBoot(false);
     flush();
@@ -831,13 +821,8 @@ $("menu-btn").onclick = () => {
 // "Overpoort · 80 m from Campus Ufo" (the sector, and the nearest place that isn't a city board).
 function describe(p) {
   const sector = sectors ? sectors[sectorOf(p, sectors)].name : "";
-  let best = null;
-  for (const q of boot.places) {
-    if (q.place_id === p.place_id || q.type === "boards") continue;
-    const m = hav(p, q);
-    if (m <= 300 && (!best || m < best.m)) best = { m, name: q.name };
-  }
-  const near = best && (best.m < 25 ? `next to ${best.name}` : `${Math.round(best.m / 10) * 10} m from ${best.name}`);
+  const best = nearest(p, boot.places, { max: 300, skip: q => q.place_id === p.place_id || q.type === "boards" });
+  const near = best && (best.m < 25 ? `next to ${best.item.name}` : `${distText(best.m)} from ${best.item.name}`);
   return [sector, near].filter(Boolean).join(" · ");
 }
 async function startTrain() {

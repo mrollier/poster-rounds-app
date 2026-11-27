@@ -1,11 +1,11 @@
 // The Leaflet map: base tiles, place pins, the home marker, and "tap a point on the map".
 // Leaflet is loaded as a classic <script> (vendor/leaflet), so it is the global `L`.
 import { CONFIG } from "../config.js";
+import { esc, num } from "./logic.js";
 import { route } from "./router.js";
 import { zoneOutline } from "./routes.js";
 
 const L = window.L;
-export const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 
 let map, placesLayer, homeMarker;
 
@@ -22,7 +22,7 @@ export function initMap(el) {
 }
 
 export function showCity(city) {
-  if (city) map.setView([+city.centre_lat, +city.centre_lon], +city.zoom || 13);
+  if (city) map.setView([num(city.centre_lat), num(city.centre_lon)], num(city.zoom) || 13); // ("51,05" works too)
 }
 
 // Room around an opened pop-up: below the top bar, and above the panel at the bottom (on a phone the panel
@@ -33,7 +33,7 @@ function popupPadding() {
   return { autoPanPaddingTopLeft: [12, top], autoPanPaddingBottomRight: [12, side ? 12 : window.innerHeight - sheet.top + 60] };
 }
 
-// A round coloured pin; `text` goes inside (priority now, stop number later).
+// A round coloured pin; `text` goes inside (the stars, or a stop number).
 const pinIcon = (color, text, cls = "") => L.divIcon({
   className: "", iconSize: [30, 30], iconAnchor: [15, 15], popupAnchor: [0, -12],
   html: `<div class="pin ${cls}" style="background:${color}">${esc(text)}</div>`,
@@ -51,7 +51,7 @@ export function drawPins(pins) {
     // keyboard: false keeps 200 pins out of the Tab order; the list has every stop with the same buttons.
     // The autopan padding keeps an opened popup clear of the top bar and the zoom buttons.
     L.marker([p.lat, p.lon], { icon: pinIcon(p.color, p.label, p.cls), title: p.title, zIndexOffset: p.z || 0, keyboard: false })
-      .bindPopup(p.popup, { minWidth: 220, ...popupPadding() }).addTo(placesLayer);
+      .bindPopup(p.popup, { minWidth: Math.min(270, window.innerWidth - 70), ...popupPadding() }).addTo(placesLayer);
   }
 }
 
@@ -63,8 +63,7 @@ export function setHome(home) {
     .bindPopup("Home").addTo(map) : null;
 }
 
-// Wait for one tap on the map; resolves {lat, lon} rounded to ~10 cm.
-// Wait for one tap on the map: resolves {lat, lon}, or null when cancelled (cancelPick, or a new pick).
+// Wait for one tap on the map: resolves {lat, lon} (rounded to ~10 cm), or null when cancelled (cancelPick, or a new pick).
 let endPick = null;
 export function pickPoint() {
   cancelPick(); // only one pick at a time: a second "Tap on the map" replaces the first

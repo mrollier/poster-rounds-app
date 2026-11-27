@@ -165,8 +165,7 @@ export const starsFromScore = (score, set) => (score >= set.t3 ? 3 : score >= se
 
 // Rows from the Swipes tab, in the order they were saved. An "undo" takes back that admin's latest
 // swipe of the same pair; "?" (unknown_left / unknown_right) says nothing about which is better.
-// The same rule everywhere (the fit tool and a phone rebuilding its schedule): an undo row takes back that
-// admin's latest swipe of the same pair.
+// The same rule everywhere: the fit tool and a phone rebuilding its schedule.
 function applyUndos(rows) {
   const kept = [];
   for (const r of rows) {
