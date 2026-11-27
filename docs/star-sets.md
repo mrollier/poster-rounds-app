@@ -11,7 +11,9 @@ The plain-words explanation is in README "How the stars are made"; the code is `
    header). Export the Places tab → `places.csv` and Types → `types.csv`.
 2. **Fit and pick anchors:** `node tools/fit-set.mjs anchors swipes.csv places.csv`.
    - The swipes are fitted (Bradley–Terry; a draw counts as half a win; an undo takes back that admin's last
-     swipe of that pair; "?" counts for nothing).
+     swipe of that pair; "?" counts for nothing). "Both 0★ / 1–2★ / 3★" is a draw plus each place's side of
+     two fitted lines, the "3★ line" and the "1★ line" (`LINES` in `js/rank.js`); the lines are never anchors,
+     held back, or written out. Swipes from before 2026-11-27 have plain draws ("About the same").
    - 12 swiped places are held back for the check in step 4.
    - 9 anchor places are picked, spread from best to worst.
    - All of this is written to `fit-work.json`.
@@ -35,6 +37,10 @@ The plain-words explanation is in README "How the stars are made"; the code is `
    - It prints how often the new scores and today's rule pick the winner on swipes that involve a held-back
      place.
    - **If the new scores don't beat today's rule, stop:** keep the rule and tell the organiser.
+   - It also prints, for the places the admins called 3★ / 1–2★ / 0★, the stars the set gives them. Many
+     "called 3★" at 2★ (or "called 0★" at 1★): tell the organiser the shares may not fit this event. (Don't
+     count places above the fitted 3★ line instead: the prior pulls the few top places down, so that count
+     comes out too low; in simulations ~4% for a true 10%.)
    - Then the organiser's blind check: before seeing the new set, they name ~10 places that must be 3★ for
      this event. Count how many of them get 3★ from the new set and from today's rule. The new set must
      get more (and at least 8 of 10); for each one it misses, say why.

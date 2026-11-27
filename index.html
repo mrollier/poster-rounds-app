@@ -189,10 +189,13 @@
       <p class="hint" id="train-count" aria-live="polite"></p>
       <p class="train-q">Which is better for a poster for <b id="train-event2"></b>?</p>
       <div id="train-pair" class="train-pair"></div>
+      <!-- No winner: about the same, and both worth 0 / 1–2 / 3 stars (low to high, left to right). -->
       <div class="btns train-acts">
-        <button type="button" id="train-undo" class="btn">Undo</button>
-        <button type="button" id="train-same" class="btn">About the same</button>
+        <button type="button" class="btn" data-both="low" aria-label="No winner, both 0 stars">Both 0★</button>
+        <button type="button" class="btn" data-both="mid" aria-label="No winner, both 1 to 2 stars">Both 1–2★</button>
+        <button type="button" class="btn" data-both="high" aria-label="No winner, both 3 stars">Both 3★</button>
       </div>
+      <div class="btns train-acts"><button type="button" id="train-undo" class="btn">Undo</button></div>
     </div>
     <div id="train-done" hidden>
       <p id="train-summary"></p>

@@ -150,7 +150,8 @@ poster (hidden). There are three ways a place gets its stars; the first one that
 
 ☰ → **Train the stars**. Say how much time you have (5–25 minutes; about 10 swipes a minute). You see two
 places side by side and swipe towards the one where a poster brings **more of the right people**: the right
-audience *and* how many pass by, in one gut call. Not sure: "About the same". Don't know a place: its "?".
+audience *and* how many pass by, in one gut call. If you lean even a little, pick that one. No winner at all:
+say how good both are, **Both 0★**, **Both 1–2★** or **Both 3★**. Don't know a place: its "?".
 Each admin works towards about **250 swipes**, over as many sittings as they like; the app remembers where
 you were.
 
@@ -166,6 +167,12 @@ places with similar scores, because those comparisons teach the most.
    is 1 / (1 + e^(score B − score A)), and the scores are the ones that make all the swipes most likely. A
    draw counts as half a win for each. A place with few swipes stays close to 0, so one odd swipe can't send
    it to the top.
+
+   The "Both …" buttons also say *where* a pair stands: a draw between two top places and one between two
+   weak places would otherwise look the same. They work through two pretend places, a "3★ line" and a
+   "1★ line", scored like the rest: "Both 3★" means each place beats the 3★ line, "Both 1–2★" that each loses
+   to the 3★ line but beats the 1★ line, "Both 0★" that each loses to the 1★ line. In a simulation with a
+   known true order this made the fitted order clearly closer to the truth (0.98 against 0.94).
 2. **The other ~330 places: rated by Claude, using your swipes as the yardstick.** From the fitted places,
    nine "anchor" places are picked, from best to worst. Claude places every other place between two anchors
    ("better than X, worse than Y"), twice, in a different order each time, and the two answers are averaged.
@@ -174,6 +181,8 @@ places with similar scores, because those comparisons teach the most.
    we count how often its scores pick the winner of your real swipes, against how often today's type rule
    does. If Claude doesn't beat the rule, the set isn't used. Before you see the result, you also name ~10
    places that must be 3★; the new set must give 3★ to at least 8 of them, and to more than today's rule.
+   And the places you called 3★ / 1–2★ / 0★ with the "Both" buttons: do they get those stars from the set? If
+   many "3★" places only get 2★, the 10% share is too tight for this event.
 4. **Scores to stars** by the shares above, written to the Scores and Sets tabs. Phones pick it up at the
    next refresh.
 

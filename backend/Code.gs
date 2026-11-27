@@ -8,7 +8,9 @@
  *   - GET  ?action=results&code=...&since=ISO    -> only results changed after `since` (cheap polling).
  *   - POST {code, name, action:"result", ...}     -> save one result (posted / not possible / undo / note).
  *   - POST {code, name, action:"addPlace", ...}   -> add a new poster place found on the street.
- *   - POST {code, name, action:"swipe", ...}      -> admins: one comparison of two places (Swipes tab).
+ *   - POST {code, name, action:"swipe", ...}      -> admins: one comparison of two places (Swipes tab):
+ *                                                  left / right better, both_low / both_mid / both_high (no
+ *                                                  winner, both 0★ / 1–2★ / 3★), draw (older), unknown_*, undo.
  *   - POST {code, name, action:"override", ...}   -> admins: set one place's stars for the campaign (Overrides).
  *   Every result and new place is also appended to the Log tab (who, what, when).
  *
@@ -26,7 +28,7 @@
 
 const TABS = { places: 'Places', campaigns: 'Campaigns', results: 'Results', cities: 'Cities', types: 'Types', log: 'Log',
   swipes: 'Swipes', overrides: 'Overrides', scores: 'Scores', sets: 'Sets' };
-const OUTCOMES = ['left', 'right', 'draw', 'unknown_left', 'unknown_right', 'undo'];
+const OUTCOMES = ['left', 'right', 'draw', 'both_high', 'both_mid', 'both_low', 'unknown_left', 'unknown_right', 'undo'];
 const STATUSES = ['posted', 'nope', 'refused', 'full', 'closed', 'later', ''];
 const MAX_BODY = 5000; // bytes; anything bigger is not a legitimate request
 

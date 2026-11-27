@@ -366,6 +366,8 @@ body:has(#zone-chip:not([hidden])) .sync-btn { top: calc(var(--bar-bottom) + 60p
 .tmeta, .twhere { font-size: .85rem; color: var(--grey); }
 .twhere { color: var(--ink); font-weight: 700; }
 .tlogo { width: 40px; height: 40px; object-fit: contain; border-radius: 6px; }
+/* Images on a card mustn't catch the finger: a drag over the map would start an image drag, not a swipe. */
+.tcard img { pointer-events: none; -webkit-user-drag: none; user-select: none; }
 .tmap { position: relative; height: 120px; border-radius: 6px; background: #eee; overflow: hidden; }
 .ttiles { position: absolute; left: 50%; top: 50%; }
 .ttiles img { position: absolute; width: 256px; height: 256px; max-width: none; }
@@ -375,7 +377,8 @@ body:has(#zone-chip:not([hidden])) .sync-btn { top: calc(var(--bar-bottom) + 60p
 .tq { position: absolute; top: 4px; right: 4px; width: 44px; height: 44px; border: 2px solid var(--ink); border-radius: 50%;
       background: var(--paper); font-weight: 800; font-size: 1.1rem; cursor: pointer; }
 .train-acts { margin-top: 10px; }
-.train-acts .btn { flex: 1; }
+.train-acts .btn { flex: 1; white-space: nowrap; padding: 0 6px; }
+#train-undo { flex: 0 1 auto; }
 /* Admin: set a place's stars from its pop-up. */
 .ovr { margin-top: 8px; font-size: .9rem; font-weight: 700; }
 .ovr .popbtn { min-width: 44px; justify-content: center; padding: 0 8px; }

@@ -99,7 +99,7 @@ Apps Script web app bound to the sheet. Read the header comment of `Code.gs`.
 - `POST` body (JSON, **sent as `Content-Type: text/plain`** to avoid a CORS preflight):
   - `{code, name, action:"result", campaign_id, place_id, cycle, status?, posters?, note?}` – upsert; omitted fields keep their value
   - `{code, name, action:"addPlace", campaign_id, city, place_name, type, tags, importance, access, posters, lat, lon, address?, notes?, location_source:"gps"|"tap"}`
-  - `{code, name, action:"swipe", deck_version, round, left_id, right_id, outcome: left|right|draw|unknown_left|unknown_right|undo}` – admins only; appended to Swipes
+  - `{code, name, action:"swipe", deck_version, round, left_id, right_id, outcome: left|right|draw|both_high|both_mid|both_low|unknown_left|unknown_right|undo}` – admins only; appended to Swipes
   - `{code, name, action:"override", place_id, stars: 0–3 or ""}` – admins only; appended to Overrides (latest per place wins, "" clears)
 - bootstrap also returns `set` (`{set_id, t3, t2, t1, scores}` or null), `overrides` (`{place_id: stars}`) and,
   for admins, `swipes` (the campaign's Swipes rows). Missing tabs count as empty.

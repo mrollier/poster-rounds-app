@@ -5,7 +5,7 @@
 import { $, toast } from "./ui.js";
 import { esc } from "./map.js";
 import { store } from "./data.js";
-import { fitBT, chooseDeck, quality, historyFromRows, nextPair, comparisonsIn as comparisons, unknownIn as unknown } from "./rank.js";
+import { fitBT, chooseDeck, quality, historyFromRows, nextPair, LINES, comparisonsIn as comparisons, unknownIn as unknown } from "./rank.js";
 import { CONFIG } from "../config.js";
 
 const DECK = "v1";        // bump when the deck rules change: a new deck starts a new schedule
@@ -111,12 +111,13 @@ export function openTrain(ctx) {
   };
   const finish = () => {
     const ids = deck.filter(id => !unknown(h).has(id)), comps = comparisons(h);
-    const now = fitBT(ids, comps), last = Math.max(1, ...h.map(x => x.round)), before = fitBT(ids, comparisons(h.filter(x => x.round < last)));
-    const q = quality(comps, ids, now, before);
+    const all = [...ids, LINES.high, LINES.low], last = Math.max(1, ...h.map(x => x.round));
+    const now = fitBT(all, comps), before = fitBT(all, comparisons(h.filter(x => x.round < last)));
+    const q = quality(comps, ids, now, before), same = h.filter(x => x.outcome === "draw" || x.outcome.startsWith("both_")).length / Math.max(1, h.length);
     $("train-summary").innerHTML = `<b>${h.length - start}</b> swipes this time, <b>${h.length}</b> of ${TOTAL} in total.<br>
       Fewest swipes for one place: <b>${q.minPer}</b> (4 or more is good).<br>
       Order change in the last round: <b>${Math.max(0, Math.round((1 - q.settled) * 100))}%</b>.
-      ${q.drawShare > 0.35 ? "<br>Many \"about the same\": if you lean even a little, pick that one." : ""}`;
+      ${same > 0.35 ? "<br>Often no winner: if you lean even a little, pick that one." : ""}`;
     show("done");
   };
 
@@ -128,7 +129,8 @@ export function openTrain(ctx) {
   };
   $("train-more").onclick = () => { goal = 10 * PER_MIN; start = h.length; show("swipe"); draw(); };
   $("train-close").onclick = $("train-close2").onclick = () => d.close();
-  $("train-same").onclick = () => answer("draw");
+  // No winner: "Both 0★ / 1–2★ / 3★" (about the same, and where the pair stands: js/rank.js, "the lines").
+  for (const b of $("train-swipe").querySelectorAll("[data-both]")) b.onclick = () => answer(`both_${b.dataset.both}`);
   $("train-undo").onclick = () => {
     const last = h.pop();
     if (!last) return;

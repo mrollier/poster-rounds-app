@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { fitBT, chooseDeck, swissRound, quality, sharesToThresholds, starsFromScore, spearman, swipesToComparisons, placeBetween, historyFromRows, nextPair } from "../js/rank.js";
+import { fitBT, chooseDeck, swissRound, quality, sharesToThresholds, starsFromScore, spearman, swipesToComparisons, placeBetween, historyFromRows, nextPair, LINES, tierLabels } from "../js/rank.js";
 import { readTab } from "./csv.js";
 
 // A fixed "random" generator (same every run), so the tests can't flake.
@@ -54,11 +54,10 @@ test("swissRound: everyone once, no pair twice, sides from the seed", () => {
   assert.ok(r2.every(p => !seen.has(key(p.left, p.right))));
 });
 
-test("quality: comparisons per place, share of draws, settled", () => {
+test("quality: comparisons per place, settled", () => {
   const q = quality([{ a: "a", b: "b", y: 0.5 }, { a: "a", b: "c", y: 1 }], ["a", "b", "c"],
     new Map([["a", { score: 1 }], ["b", { score: 0 }], ["c", { score: -1 }]]), new Map([["a", { score: 1 }], ["b", { score: 0 }], ["c", { score: -1 }]]));
   assert.equal(q.minPer, 1);
-  assert.equal(q.drawShare, 0.5);
   assert.equal(q.settled, 1);
 });
 
@@ -108,4 +107,71 @@ test("nextPair: a '?' doesn't restart the schedule; rounds keep going", () => {
 
 test("spearman: no spread to compare means 'not settled' (0), not 1", () => {
   assert.equal(spearman([0, 0, 0], [3, 2, 1]), 0);
+});
+
+test("'Both 3★ / 1–2★ / 0★': a draw between the two, and each place's side of the 3★ and 1★ lines", () => {
+  const row = (l, r, outcome) => ({ by: "Ann", left_id: l, right_id: r, outcome, round: "1" });
+  assert.deepEqual(swipesToComparisons([row("a", "b", "both_high"), row("c", "d", "both_low"), row("e", "f", "both_mid")]), [
+    { a: "a", b: "b", y: 0.5 }, { a: "a", b: LINES.high, y: 1 }, { a: "b", b: LINES.high, y: 1 },
+    { a: "c", b: "d", y: 0.5 }, { a: "c", b: LINES.low, y: 0 }, { a: "d", b: LINES.low, y: 0 },
+    { a: "e", b: "f", y: 0.5 }, { a: "e", b: LINES.high, y: 0 }, { a: "f", b: LINES.high, y: 0 },
+    { a: "e", b: LINES.low, y: 1 }, { a: "f", b: LINES.low, y: 1 }]);
+  // An undo takes back a "both" swipe like any other.
+  assert.deepEqual(swipesToComparisons([row("a", "b", "both_high"), row("a", "b", "undo")]), []);
+});
+
+test("the lines spread places that only ever drew: 'both 3★' ones end above 'both 0★' ones", () => {
+  const row = (l, r, outcome) => ({ by: "Ann", left_id: l, right_id: r, outcome, round: "1" });
+  const comps = swipesToComparisons([row("a", "b", "both_high"), row("c", "d", "both_low"), row("b", "c", "draw")]);
+  const fit = fitBT(["a", "b", "c", "d", LINES.high, LINES.low], comps);
+  assert.ok(fit.get("a").score > fit.get("d").score + 0.5, `${fit.get("a").score} vs ${fit.get("d").score}`);
+  assert.ok(fit.get(LINES.high).score < fit.get("a").score && fit.get(LINES.low).score > fit.get("d").score);
+  // Plain draws only: no spread at all (what the earlier swipes give).
+  const flat = fitBT(["a", "b", "c", "d"], swipesToComparisons([row("a", "b", "draw"), row("c", "d", "draw"), row("b", "c", "draw")]));
+  assert.ok(Math.abs(flat.get("a").score - flat.get("d").score) < 1e-6);
+});
+
+test("tierLabels: what the admins called each place with the 'Both …' buttons (undos applied)", () => {
+  const row = (l, r, outcome) => ({ by: "Ann", left_id: l, right_id: r, outcome });
+  const t = tierLabels([row("a", "b", "both_high"), row("a", "c", "both_mid"), row("d", "e", "both_low"), row("d", "e", "undo"), row("a", "b", "left")]);
+  assert.deepEqual(t, { a: [3, 1], b: [3], c: [1] }); // 3 = "3★", 1 = "1–2★", 0 = "0★"
+});
+
+test("nextPair: 'both' swipes count for the schedule and rounds keep going", () => {
+  const deck = Array.from({ length: 10 }, (_, i) => `p${i}`), h = [];
+  for (let k = 0; k < 20; k++) {
+    const p = nextPair(deck, h, 7);
+    if (!p) break;
+    h.push({ left: p.left, right: p.right, outcome: ["both_high", "both_low", "left"][k % 3], round: p.round });
+  }
+  assert.ok(h.length === 20 && Math.max(...h.map(x => x.round)) >= 3);
+});
+
+// The science check: simulate an admin who knows the true scores and the true 3★ / 1★ lines (at the 90% and
+// 50% marks), swiping on a Swiss schedule like the app. The fit must find the order, and the 1★ line must
+// land near the true 50% mark. With one-sided evidence (only "both 3★" and "both 0★") the lines drift off;
+// the middle button gives each line evidence from both sides. (The 3★ line, a tail, is pulled up by the
+// prior shrinking the few top places: it shows too few places above it, so it isn't used as a check.)
+test("simulation: the fit recovers the order and where the 3★ / 1★ lines are", () => {
+  const rand = rng(11), deck = Array.from({ length: 60 }, (_, i) => `p${String(i).padStart(2, "0")}`);
+  const truth = Object.fromEntries(deck.map(id => [id, (rand() - 0.5) * 5]));
+  const sorted = Object.values(truth).sort((a, b) => b - a), hi = sorted[5], lo = sorted[29]; // 6 of 60 above hi, 30 below lo
+  const tier = s => (s >= hi ? "high" : s < lo ? "low" : "mid");
+  const h = [];
+  for (let k = 0; k < 250; k++) {
+    const p = nextPair(deck, h, 3);
+    const d = truth[p.left] - truth[p.right], same = tier(truth[p.left]) === tier(truth[p.right]);
+    // Close and in the same tier: a "both" button; else a winner, by the Bradley–Terry chance.
+    const outcome = same && Math.abs(d) < 0.5 ? `both_${tier(truth[p.left])}` : rand() < 1 / (1 + Math.exp(-d)) ? "left" : "right";
+    h.push({ left: p.left, right: p.right, outcome, round: p.round });
+  }
+  const rows = h.map(x => ({ by: "Ann", left_id: x.left, right_id: x.right, outcome: x.outcome, round: String(x.round) }));
+  const fit = fitBT([...deck, LINES.high, LINES.low], swipesToComparisons(rows));
+  const rho = spearman(deck.map(id => truth[id]), deck.map(id => fit.get(id).score));
+  const below1 = deck.filter(id => fit.get(id).score < fit.get(LINES.low).score).length / deck.length;
+  assert.ok(rho > 0.9, `order: spearman ${rho.toFixed(2)}`);
+  assert.ok(Math.abs(below1 - 0.50) <= 0.1, `below the 1★ line: ${below1}`);
+  // The lines help the order: the same swipes with plain draws instead of "both" give a worse fit.
+  const plain = fitBT(deck, swipesToComparisons(rows.map(r => ({ ...r, outcome: r.outcome.startsWith("both") ? "draw" : r.outcome }))));
+  assert.ok(rho > spearman(deck.map(id => truth[id]), deck.map(id => plain.get(id).score)), "lines don't help the order");
 });

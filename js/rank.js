@@ -6,6 +6,13 @@
 //   - Each admin sees a deck of 60 places, paired like a chess tournament ("Swiss rounds"): first at
 //     random, later places with similar scores meet, so each swipe teaches the most.
 //   - Scores become stars by share: the top 10% 3★, the next 15% 2★, the next 25% 1★, the rest 0★.
+//   - No winner: "Both 0★" / "Both 1–2★" / "Both 3★" also say where the pair stands, not just that the two
+//     are alike (a plain draw at the top and one at the bottom look the same). Such a swipe counts as a draw
+//     between the two, plus each place's side of two lines: the "3★ line" and the "1★ line", two pretend
+//     places whose scores are fitted like any other. So the chance that a place is judged above a line is
+//     1 / (1 + e^(line − score)): the usual ordinal (threshold) model, sharing its scores with the pairwise
+//     one. The middle button matters: it puts places *below* the 3★ line and *above* the 1★ line, so each
+//     line gets evidence from both sides (with only "both 3★" the 3★ line would drift ever lower).
 
 // ---------- The fit ----------
 
@@ -67,6 +74,17 @@ export function chooseDeck(places, { size = 60, must = [] } = {}) {
   return deck.slice(0, size);
 }
 
+// The two lines, as ids that never clash with a place id.
+export const LINES = { high: "line:3★", low: "line:1★" };
+
+// What the admins called each place with the "Both …" buttons: {place_id: [3 | 1 | 0, …]} (3 = "3★",
+// 1 = "1–2★", 0 = "0★"). Used to check a finished set: do places called 3★ get 3★ from it?
+export function tierLabels(rows) {
+  const out = {}, star = { both_high: 3, both_mid: 1, both_low: 0 };
+  for (const r of applyUndos(rows)) if (r.outcome in star) for (const id of [r.left_id, r.right_id]) (out[id] ||= []).push(star[r.outcome]);
+  return out;
+}
+
 // ---------- Pairing ----------
 
 // A small seeded random generator: the same seed gives the same pairs, so a schedule can be rebuilt
@@ -111,7 +129,7 @@ export function spearman(xs, ys) {
   return da && db ? num / Math.sqrt(da * db) : 0; // nothing to compare (all equal): not settled
 }
 
-// For the screen: the fewest comparisons any deck place has had, the share of "about the same", and how
+// For the screen: the fewest comparisons any deck place has had, and how
 // much the order still moved since the previous round (1 = not at all). A high number early on doesn't mean the
 // order is right: later rounds pair neighbours, so one round can't move it much.
 export function quality(comparisons, ids, scores, before) {
@@ -119,7 +137,6 @@ export function quality(comparisons, ids, scores, before) {
   for (const c of comparisons) { if (c.a in n) n[c.a]++; if (c.b in n) n[c.b]++; }
   return {
     minPer: Math.min(...Object.values(n)),
-    drawShare: comparisons.length ? comparisons.filter(c => c.y === 0.5).length / comparisons.length : 0,
     settled: spearman(ids.map(id => before.get(id)?.score || 0), ids.map(id => scores.get(id)?.score || 0)),
   };
 }
@@ -151,9 +168,17 @@ function applyUndos(rows) {
   }
   return kept;
 }
+// One swipe as comparisons {a, b, y} (y = 1: a better, 0: b better, 0.5: about the same).
 const Y = { left: 1, right: 0, draw: 0.5 };
+function toComparisons(left, right, outcome) {
+  if (outcome in Y) return [{ a: left, b: right, y: Y[outcome] }];
+  // Each place's side of the lines: [line, 1 = above it / 0 = below it].
+  const sides = { both_high: [[LINES.high, 1]], both_mid: [[LINES.high, 0], [LINES.low, 1]], both_low: [[LINES.low, 0]] }[outcome];
+  if (!sides) return []; // "?" says nothing about which is better
+  return [{ a: left, b: right, y: 0.5 }, ...sides.flatMap(([line, y]) => [{ a: left, b: line, y }, { a: right, b: line, y }])];
+}
 export function swipesToComparisons(rows) {
-  return applyUndos(rows).filter(r => r.outcome in Y).map(r => ({ a: r.left_id, b: r.right_id, y: Y[r.outcome] }));
+  return applyUndos(rows).flatMap(r => toComparisons(r.left_id, r.right_id, r.outcome));
 }
 
 // ---------- One admin's schedule (js/train.js) ----------
@@ -166,7 +191,7 @@ export function historyFromRows(rows, name, deckVersion) {
 
 // Places an admin said they don't know ("?"), in these history entries.
 const unknownIn = h => new Set(h.flatMap(x => (x.outcome === "unknown_left" ? [x.left] : x.outcome === "unknown_right" ? [x.right] : [])));
-const comparisonsIn = h => h.filter(x => x.outcome in Y).map(x => ({ a: x.left, b: x.right, y: Y[x.outcome] }));
+const comparisonsIn = h => h.flatMap(x => toComparisons(x.left, x.right, x.outcome));
 
 // The next pair to show: the first pair of the current Swiss round that hasn't been swiped yet; a finished
 // round starts the next one. Each round is rebuilt exactly as it was first made: from the swipes and the
@@ -177,7 +202,8 @@ export function nextPair(deck, h, seed) {
   for (let round = 1; round < 99; round++) {
     const before = h.filter(x => x.round < round), now = h.filter(x => x.round === round);
     const known = deck.filter(id => !unknownIn(before).has(id));
-    const pairs = swissRound(known, before.map(x => ({ a: x.left, b: x.right })), fitBT(known, comparisonsIn(before)), seed, round);
+    const scores = fitBT([...known, LINES.high, LINES.low], comparisonsIn(before)); // (lines: see "Both 3★" at the top)
+    const pairs = swissRound(known, before.map(x => ({ a: x.left, b: x.right })), scores, seed, round);
     const done = new Set(now.map(x => [x.left, x.right].sort().join("|")));
     const next = pairs.find(p => !done.has([p.left, p.right].sort().join("|")) && !gone.has(p.left) && !gone.has(p.right));
     if (next) return { ...next, round };

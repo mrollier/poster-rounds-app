@@ -12,25 +12,32 @@
 //        places), then writes scores.csv and set.csv to paste into the Scores and Sets tabs.
 import fs from "node:fs";
 import { parseCSV } from "../tests/csv.js";
-import { fitBT, swipesToComparisons, placeBetween, sharesToThresholds, starsFromScore } from "../js/rank.js";
+import { fitBT, swipesToComparisons, placeBetween, sharesToThresholds, starsFromScore, LINES, tierLabels } from "../js/rank.js";
 import { stars, eventWeights } from "../js/logic.js";
 
 const table = f => { const [head, ...rows] = parseCSV(fs.readFileSync(f, "utf8")); return rows.map(r => Object.fromEntries(head.map((k, i) => [k, r[i]]))); };
 const active = p => !/^(false|no|0)$/i.test(String(p.active ?? "TRUE").trim());
 const [cmd, ...args] = process.argv.slice(2);
+// The swipes as comparisons between active places, plus the "3★ line" / "1★ line" from the "Both 3★ / Both 0★"
+// swipes (js/rank.js). The lines are fitted with the places but are never anchors, held out, or written out.
+const REF = [LINES.high, LINES.low];
+function swipedPlaces(swipesFile, live) {
+  const ok = id => live.has(id) || REF.includes(id);
+  const comps = swipesToComparisons(table(swipesFile)).filter(c => ok(c.a) && ok(c.b));
+  return { comps, swiped: [...new Set(comps.flatMap(c => [c.a, c.b]))].filter(id => live.has(id)) };
+}
 
 if (cmd === "anchors") {
   const [swipesFile, placesFile] = args;
   const places = table(placesFile).filter(active), live = new Set(places.map(p => p.place_id));
   // Only swipes between places that are still active (a place removed from the sheet can't be an anchor).
-  const comps = swipesToComparisons(table(swipesFile)).filter(c => live.has(c.a) && live.has(c.b));
-  const swiped = [...new Set(comps.flatMap(c => [c.a, c.b]))];
-  const all = fitBT(swiped, comps), ranked = [...swiped].sort((x, y) => all.get(y).score - all.get(x).score);
+  const { comps, swiped } = swipedPlaces(swipesFile, live);
+  const all = fitBT([...swiped, ...REF], comps), ranked = [...swiped].sort((x, y) => all.get(y).score - all.get(x).score);
   // 12 held-back places, spread over the whole range (every n-th), for an honest check afterwards.
   const step = Math.max(1, Math.floor(ranked.length / 12)), heldout = ranked.filter((_, i) => i % step === step >> 1).slice(0, 12);
   const train = comps.filter(c => !heldout.includes(c.a) && !heldout.includes(c.b));
-  const fitted = fitBT(swiped.filter(id => !heldout.includes(id)), train);
-  const order = [...fitted.keys()].sort((x, y) => fitted.get(y).score - fitted.get(x).score);
+  const fitted = fitBT([...swiped.filter(id => !heldout.includes(id)), ...REF], train);
+  const order = [...fitted.keys()].filter(id => live.has(id)).sort((x, y) => fitted.get(y).score - fitted.get(x).score);
   const anchors = Array.from({ length: 9 }, (_, i) => order[Math.round(i * (order.length - 1) / 8)])
     .map(id => { const p = places.find(q => q.place_id === id); return { place_id: id, name: p?.name, type: p?.type, address: p?.address, score: fitted.get(id).score }; });
   const toRate = places.map(p => p.place_id).filter(id => !fitted.has(id));
@@ -41,18 +48,19 @@ if (cmd === "anchors") {
   const [workFile, placementsFile, placesFile, typesFile, setId, event] = args;
   const work = JSON.parse(fs.readFileSync(workFile, "utf8")), places = table(placesFile).filter(active);
   const live = new Set(places.map(p => p.place_id));
-  const comps = swipesToComparisons(table(args[6] || "swipes.csv")).filter(c => live.has(c.a) && live.has(c.b));
+  const { comps, swiped } = swipedPlaces(args[6] || "swipes.csv", live);
   // Claude's placements → scores (passes averaged).
   const placed = {};
   for (const r of table(placementsFile)) (placed[r.place_id] ||= []).push(placeBetween(work.anchors, +r.k, r.pos));
   const predicted = Object.fromEntries(Object.entries(placed).map(([id, xs]) => [id, xs.reduce((a, b) => a + b, 0) / xs.length]));
   // The check: on swipes that involve a held-back place, who picks the winner more often?
-  const swiped = [...new Set(comps.flatMap(c => [c.a, c.b]))], final = fitBT(swiped, comps);
-  const train = fitBT(swiped.filter(id => !work.heldout.includes(id)), comps.filter(c => !work.heldout.includes(c.a) && !work.heldout.includes(c.b)));
+  const final = fitBT([...swiped, ...REF], comps);
+  const train = fitBT([...swiped.filter(id => !work.heldout.includes(id)), ...REF], comps.filter(c => !work.heldout.includes(c.a) && !work.heldout.includes(c.b)));
   const newScore = id => predicted[id] ?? train.get(id)?.score ?? 0;
   const w = eventWeights(table(typesFile), event), byId = new Map(places.map(p => [p.place_id, p]));
   const ruleScore = id => (byId.has(id) ? stars(byId.get(id), w) : 0);
-  const test = comps.filter(c => c.y !== 0.5 && (work.heldout.includes(c.a) || work.heldout.includes(c.b)));
+  // (place-vs-line comparisons aren't in the check: today's rule has no lines to compare with)
+  const test = comps.filter(c => c.y !== 0.5 && !REF.includes(c.a) && !REF.includes(c.b) && (work.heldout.includes(c.a) || work.heldout.includes(c.b)));
   const hit = f => test.reduce((n, c) => n + (f(c.a) === f(c.b) ? 0.5 : (f(c.a) > f(c.b)) === (c.y === 1) ? 1 : 0), 0) / (test.length || 1);
   console.log(`Check on ${test.length} swipes with a held-back place: new scores ${(100 * hit(newScore)).toFixed(0)}% right, today's rule ${(100 * hit(ruleScore)).toFixed(0)}% right.`);
   // The set: swiped places from the fit on all swipes, the rest from Claude's placements.
@@ -67,6 +75,15 @@ if (cmd === "anchors") {
   fs.writeFileSync("scores.csv", ["set_id,place_id,score,source,rater,n,updated_at", ...rows.map(r => r.join(","))].join("\n") + "\n");
   fs.writeFileSync("set.csv", `set_id,event,t3,t2,t1,made_by,made_at,note\n"${setId}","${event}",${t.t3.toFixed(3)},${t.t2.toFixed(3)},${t.t1.toFixed(3)},Claude,${now},"${comps.length} swipes"\n`);
   console.log(`${rows.length} scores. Stars 3/2/1/0: ${count[3]}/${count[2]}/${count[1]}/${count[0]}. Wrote scores.csv and set.csv.`);
+  // The check on the shares: places the admins called 3★ / 1–2★ / 0★ with the "Both …" buttons, and the stars
+  // the set gives them. Many "called 3★" places at 2★ means the 10% share is too tight for this event.
+  const called = tierLabels(table(args[6] || "swipes.csv")), starOf = new Map(rows.map(r => [r[1], starsFromScore(+r[2], t)]));
+  for (const [label, k] of [["3★", 3], ["1–2★", 1], ["0★", 0]]) {
+    const ids = Object.keys(called).filter(id => starOf.has(id) && Math.round(called[id].reduce((a, b) => a + b, 0) / called[id].length) === k);
+    if (!ids.length) continue;
+    const got = [3, 2, 1, 0].map(n => `${n}★ ${ids.filter(id => starOf.get(id) === n).length}`).join(", ");
+    console.log(`Called ${label} by the admins: ${ids.length} places. The set gives them: ${got}.`);
+  }
 } else {
   console.log("usage: see the top of tools/fit-set.mjs");
 }

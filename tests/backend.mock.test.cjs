@@ -76,6 +76,7 @@ assert.ok(r.ok && r.swipe_id, JSON.stringify(r));
 const sw = tabs.Swipes[tabs.Swipes.length - 1], sh = tabs.Swipes[0];
 assert.strictEqual(sw[sh.indexOf('campaign_id')], C); assert.strictEqual(sw[sh.indexOf('by')], 'Ann'); assert.strictEqual(sw[sh.indexOf('outcome')], 'left');
 assert.strictEqual(post({ code: A, name: 'Ann', action: 'swipe', left_id: 'T06', right_id: 'T07', outcome: 'maybe' }).error, 'bad outcome');
+for (const outcome of ['both_high', 'both_mid', 'both_low']) assert.ok(post({ code: A, name: 'Ann', action: 'swipe', deck_version: 'v1', round: 1, left_id: 'T06', right_id: 'T07', outcome }).ok, outcome);
 assert.strictEqual(post({ code: A, name: 'Ann', action: 'swipe', left_id: 'T06', right_id: 'NOPE', outcome: 'left' }).error, 'unknown place');
 assert.ok(post({ code: A, name: 'Ann', action: 'swipe', left_id: 'T06', right_id: 'T07', outcome: 'undo', undo_of: r.swipe_id }).ok);
 assert.strictEqual(post({ code: 'secret', name: 'Vol', action: 'override', place_id: 'T06', stars: 3 }).error, 'admin only');
@@ -86,7 +87,7 @@ assert.ok(post({ code: A, name: 'Ann', action: 'override', place_id: 'T07', star
 assert.strictEqual(post({ code: A, name: 'Ann', action: 'override', place_id: 'T06', stars: 7 }).error, 'bad stars');
 let bootA = get({ action: 'bootstrap', code: A }), bootV = get({ action: 'bootstrap', code: 'secret' });
 assert.deepStrictEqual(bootA.overrides, { T06: 1 });                       // latest wins; a cleared one is gone
-assert.strictEqual(bootA.swipes.length, 2); assert.strictEqual(bootV.swipes, undefined); // only admins get swipes
+assert.strictEqual(bootA.swipes.length, 5); assert.strictEqual(bootV.swipes, undefined); // only admins get swipes
 assert.strictEqual(bootV.set, null);                                        // no learned set yet: the rule applies
 tabs.Sets.push(['default:AI Safety', 'AI Safety', '2', '1', '0', 'Claude', '2026-11-27', '']);
 tabs.Scores.push(['default:AI Safety', 'T06', '2.5', 'predicted', 'claude', '0', '2026-11-27'], ['default:AI Safety', 'T07', '-1', 'swiped', 'bt', '5', '2026-11-27']);
