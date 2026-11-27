@@ -229,8 +229,9 @@ everyone after the next poll. Send `location_source` gps/tap (stored as app-gps/
   navigation also ends follow-me. No turn-by-turn instructions.
 - **Trip lines** (On my way, a zone) run from the trip's start, not from the moving GPS position, so they don't
   change while you move. All left has no line.
-- **Google Maps** stays as a fallback: a small "Google Maps ↗" link on the card and list rows, and the
-  multi-stop links in the sheet (address for `location_source = basisregisters`, else `lat,lon`; max 3
+- **Google Maps** stays as a fallback: a "Google Maps ↗" button in the pop-up and a link in list rows open
+  the place itself (`/maps/search/`, no route: the user taps Directions there), and the multi-stop route
+  links in the sheet (address for `location_source = basisregisters`, else `lat,lon`; max 3
   waypoints + destination per link).
 
 ## 5. Tags

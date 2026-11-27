@@ -160,8 +160,8 @@ function renderAll(kept) {
   $("list-title").textContent = "All left, nearest first";
   listButton(`All ${kept.length} stops`);
   const mins = s => Math.round(minutes(away(s), filters.travel));
-  $("stops").innerHTML = listVisible() ? open.map(s => rowHtml(s, `${s.stars}★`, mins(s), filters.travel)).join("")
-    + doneOnes.map(s => rowHtml(s, "✓", null, filters.travel)).join("") : "";
+  $("stops").innerHTML = listVisible() ? open.map(s => rowHtml(s, `${s.stars}★`, mins(s))).join("")
+    + doneOnes.map(s => rowHtml(s, "✓", null)).join("") : "";
 
   drawPins(kept.map(s => done(s) ? { ...pinOf(s, ""), cls: "faded" } : pinOf(s, `${s.stars}★`)));
   if (!navigating()) drawRoute(null);
@@ -246,7 +246,7 @@ function renderRoute(o) {
   $("list-title").textContent = o.title;
   listButton(`All ${o.route.length} stops`);
   // The list (up to ~200 rows) is only built while it's visible: keeps the phone quick.
-  $("stops").innerHTML = listVisible() ? o.route.map((s, i) => rowHtml(s, i + 1, eta.get(s) ?? null, o.travel)).join("") : "";
+  $("stops").innerHTML = listVisible() ? o.route.map((s, i) => rowHtml(s, i + 1, eta.get(s) ?? null)).join("") : "";
 
   // Pins: the trip's stops numbered; other open stops small (in "On my way", so they can be an end).
   const pos = new Map(o.route.map((s, i) => [s, i + 1]));

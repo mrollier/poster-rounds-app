@@ -99,7 +99,10 @@ export function navTarget(p) {
   return `${p.lat},${p.lon}`;
 }
 
-// One directions link. Without an origin, Google Maps starts from where the phone is.
+// The place itself in Google Maps (its card, with Directions there if you want them).
+export const gmapsPlaceUrl = p => "https://www.google.com/maps/search/?" + new URLSearchParams({ api: "1", query: navTarget(p) });
+
+// One directions link (for a trip of several stops). Without an origin, Google Maps starts from where the phone is.
 export function gmapsUrl(dest, { origin = null, waypoints = [], mode = "bike" } = {}) {
   const q = new URLSearchParams({ api: "1", destination: navTarget(dest), travelmode: GMODE[mode] || mode });
   if (origin) q.set("origin", navTarget(origin));

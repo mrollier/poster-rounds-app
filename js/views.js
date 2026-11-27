@@ -2,7 +2,7 @@
 // A "stop" here is {place, stars, type: {label, color}, res} where res is the latest result row (or null).
 // Buttons carry data-act="posted|nope|undo|note" and data-id="<place_id>"; one click handler serves them all.
 import { esc } from "./map.js";
-import { isDone, FAILED, STATUS_LABEL, gmapsUrl, starText } from "./logic.js";
+import { isDone, FAILED, STATUS_LABEL, gmapsPlaceUrl, starText } from "./logic.js";
 
 const statusOf = s => s.res?.status || "";
 const plural = (n, word) => `${esc(n)} ${word}${+n === 1 ? "" : "s"}`;
@@ -46,9 +46,8 @@ function popupHtml(s, extraButtons) {
     <div class="pop-btns">${isDone(st)
       ? btn("undo", p.place_id, "Undo ↺", "popbtn alt")
       : btn("posted", p.place_id, "Posted ✓", "popbtn") + btn("nope", p.place_id, "Can't ✗", "popbtn alt")}
-      ${btn("nav", p.place_id, "Navigate", "popbtn alt")}${extraButtons}${popupExtra(s)}
-      <a class="pop-gmaps" href="${gmapsUrl(p)}" target="_blank" rel="noopener" aria-label="Open in Google Maps" title="Google Maps">
-        <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><path d="M12 2a7 7 0 0 0-7 7c0 5 7 13 7 13s7-8 7-13a7 7 0 0 0-7-7zm0 9.5A2.5 2.5 0 1 1 12 6.5a2.5 2.5 0 0 1 0 5z" fill="currentColor"/></svg></a></div></div>`;
+      ${btn("nav", p.place_id, "Navigate", "popbtn alt")}
+      <a class="popbtn alt" href="${gmapsPlaceUrl(p)}" target="_blank" rel="noopener">Google Maps ↗</a>${extraButtons}${popupExtra(s)}</div></div>`;
 }
 
 // The big yellow card at the bottom: the stop to do now. `finished`: {text, label, dest} when nothing is left
@@ -73,7 +72,7 @@ export function nextCardHtml(s, heading, { finished = null } = {}) {
 }
 
 // One row of the list: badge, name, details, result, and the result menu / note / undo.
-export function rowHtml(s, label, eta = null, travel = "bike") {
+export function rowHtml(s, label, eta = null) {
   const p = s.place, st = statusOf(s);
   const cls = st === "posted" ? "is-done" : FAILED.includes(st) ? "is-done is-failed" : st === "later" ? "is-later" : "";
   const options = [["", "No result yet"], ...Object.entries(STATUS_LABEL)]
@@ -92,7 +91,7 @@ export function rowHtml(s, label, eta = null, travel = "bike") {
         ${btn("note", p.place_id, s.res?.note ? "Edit note" : "Add note")}
         ${st ? btn("undo", p.place_id, "Undo ↺", "undo") : ""}
         ${btn("nav", p.place_id, "Navigate")}
-        <a href="${gmapsUrl(p, { mode: travel })}" target="_blank" rel="noopener">Google Maps ↗</a>
+        <a href="${gmapsPlaceUrl(p)}" target="_blank" rel="noopener">Google Maps ↗</a>
       </div>
     </div>
   </li>`;

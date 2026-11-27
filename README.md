@@ -18,7 +18,7 @@ changes needed for that.
   in the background; offline they wait on the phone.
 - **Real routes** by bike or on foot, and **in-app navigation** to a stop: the route from where you are, with the
   distance and time still to go, a new route when you take another way, and Posted ✓ / Can't ✗ when you arrive.
-  A small Google Maps link stays for turn-by-turn directions.
+  A "Google Maps ↗" button in a stop's pop-up opens the place in Google Maps (tap Directions there for turn-by-turn).
 - **Live location** (blue dot, follow-me) and **+ Add place** for new spots found on the street.
 - Drag the bottom sheet down to a one-line strip to see the whole map.
 - Installable on the home screen; works offline after the first visit.
@@ -226,7 +226,7 @@ app could do it on its own; for now a person checks each set before it goes live
   Filters; a zone's loop is walked, and "Bike to the P" is biked.
 - **Look:** colours and the lightbulb logo follow effectivealtruism.org (dark teal `#1b5266`, peach
   `#ffbe8b`), set once at the top of `css/app.css`. The app icons in `icons/` are the same lightbulb.
-- **Navigation** shows distance and time, not turn-by-turn instructions; use the small Google Maps link for those.
+- **Navigation** shows distance and time, not turn-by-turn instructions; open the place in Google Maps and tap Directions for those.
 - **Orders are per phone.** On my way and Zones are remembered on each phone; only results and
   places are shared.
 - **Sync:** results are fetched every 30 s and when the app comes back on screen; places every 5 minutes. When

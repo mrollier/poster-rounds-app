@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { stars, placeStars, fillScore, eventTypes, eventWeights, starText, cycleStart, brusselsToday, isDone, cycleFor, gmapsUrl, cleanBoot } from "../js/logic.js";
+import { stars, placeStars, fillScore, eventTypes, eventWeights, starText, cycleStart, brusselsToday, isDone, cycleFor, gmapsUrl, gmapsPlaceUrl, chunkLinks, cleanBoot } from "../js/logic.js";
 import { readTab } from "./csv.js";
 
 const places = readTab("places");
@@ -83,8 +83,16 @@ test("gmapsUrl: register addresses by name, other pins by coordinates", () => {
   assert.equal(u.searchParams.get("travelmode"), "walking");
 });
 
-test("chunkLinks: 3 waypoints + destination per link, each part starts where the last ended", async () => {
-  const { chunkLinks } = await import("../js/logic.js");
+test("gmapsPlaceUrl: opens the place itself (no route): register address, else the pin", () => {
+  const reg = { address: "Sint-Salvatorstraat 5", city: "Gent", lat: "51.06", lon: "3.72", location_source: "basisregisters" };
+  const u = new URL(gmapsPlaceUrl(reg));
+  assert.equal(u.pathname, "/maps/search/");
+  assert.equal(u.searchParams.get("query"), "Sint-Salvatorstraat 5, Gent, Belgium");
+  assert.equal(u.searchParams.get("travelmode"), null);
+  assert.equal(new URL(gmapsPlaceUrl({ lat: 51.05, lon: 3.71, location_source: "osm" })).searchParams.get("query"), "51.05,3.71");
+});
+
+test("chunkLinks: 3 waypoints + destination per link, each part starts where the last ended", () => {
   const pts = Array.from({ length: 9 }, (_, i) => ({ lat: 51, lon: i }));
   const links = chunkLinks(pts, "bike");
   assert.deepEqual(links.map(l => [l.from, l.to]), [[1, 4], [5, 8], [9, 9]]);

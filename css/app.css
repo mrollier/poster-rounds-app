@@ -219,7 +219,7 @@ li.is-later .badge { border-style: dashed; }
 .popbtn {
   display: inline-flex; align-items: center; min-height: 44px; padding: 0 12px; border: 2px solid var(--ink);
   border-radius: 6px; background: var(--accent); color: var(--ink) !important; font-weight: 700; font-size: 15px;
-  text-decoration: none; cursor: pointer;
+  text-decoration: none; cursor: pointer; white-space: nowrap;
 }
 .popbtn.alt { background: var(--paper); }
 
@@ -345,8 +345,6 @@ body:has(#nav:not([hidden])) .leaflet-top { top: calc(var(--bar-bottom) + var(--
 }
 body:has(#nav:not([hidden])) .zone-chip { top: calc(var(--bar-bottom) + var(--nav-h, 76px) + 16px); }
 body:has(#zone-chip:not([hidden])) .sync-btn { top: calc(var(--bar-bottom) + 60px); }
-/* The Google Maps icon in a stop's pop-up (turn-by-turn, if you want it). */
-.pop-gmaps { display: inline-grid; place-items: center; width: 44px; height: 44px; margin-left: auto; color: var(--brand) !important; }
 
 /* ---------- Train the stars ---------- */
 .dlg-btns.col { flex-direction: column; }
