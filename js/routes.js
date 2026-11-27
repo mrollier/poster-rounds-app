@@ -88,7 +88,6 @@ export function computeWay(from, to, candidates, budget, mode) {
 
 export const ZONE_MINUTES = { S: 20, M: 45, L: 90 }; // Small / Medium / Large: walking + hanging time
 const RACK_MAX = 400;     // metres: a bike rack further than this from every stop of the zone doesn't count
-const LABEL_MAX = 1500;   // metres: a neighbourhood name further away than this isn't used
 const key = p => `${p[0]},${p[1]}`;
 
 // Walking loop from the bike spot past every stop and back. Returns the stops in order and the metres.
@@ -135,95 +134,77 @@ export function sectorOf(place, sectors) {
   return best;
 }
 
-// One busy sector can hold more work than a zone should (27 stops around the Boekentoren). Then it's cut
-// in two along the line halfway between its two farthest-apart stops, again and again until each part fits.
-// Only there does a border not follow a street. Rings are cut with the Sutherland–Hodgman method.
-const cos = Math.cos(51 * Math.PI / 180); // ponytail: fixed for Belgium, so 1° east ≈ 1° north in metres
-function cut(rings, a, b, keepA) {
-  // f(p) < 0 on a's side of the line, > 0 on b's side (a flat-earth approximation is fine for a few km).
-  const f = p => (p[1] - (a.lon + b.lon) / 2) * cos * cos * (b.lon - a.lon) + (p[0] - (a.lat + b.lat) / 2) * (b.lat - a.lat);
-  const keep = p => (keepA ? f(p) <= 0 : f(p) >= 0);
-  const r5 = x => Math.round(x * 1e5) / 1e5;
-  return rings.map(r => {
-    const out = [];
-    r.forEach((p, i) => {
-      const q = r[(i + 1) % r.length];
-      if (keep(p)) out.push(p);
-      if (keep(p) !== keep(q)) { // the edge crosses the line: add the crossing point
-        const [u, v] = key(p) < key(q) ? [p, q] : [q, p]; // same order for both halves: the very same point
-        const t = f(u) / (f(u) - f(v));
-        out.push([r5(u[0] + t * (v[0] - u[0])), r5(u[1] + t * (v[1] - u[1]))]);
-      }
-    });
-    return out;
-  }).filter(r => r.length >= 3);
-}
-function splitUnit(u, target) {
-  if (u.stops.length < 2 || zoneMinutes(u.stops) <= target * 1.3) return [u];
-  let a = u.stops[0], b = u.stops[1], far = -1;
-  for (const p of u.stops) for (const q of u.stops) if (hav(p, q) > far) { far = hav(p, q); a = p; b = q; }
-  const A = u.stops.filter(s => hav(s, a) <= hav(s, b)), B = u.stops.filter(s => hav(s, a) > hav(s, b));
-  if (!A.length || !B.length) return [u];
-  const pa = { lat: +a.lat, lon: +a.lon }, pb = { lat: +b.lat, lon: +b.lon };
-  return [...splitUnit({ ...u, rings: cut(u.rings, pa, pb, true), stops: A }, target),
-          ...splitUnit({ ...u, rings: cut(u.rings, pa, pb, false), stops: B }, target)];
+// How round a shape is (Polsby–Popper): 4π·area / perimeter². A circle is 1, a square about 0.79, a long
+// strip close to 0. Round zones make short walking loops. Measured on a flat map, where 1° east is
+// cos(51°) times shorter than 1° north (fine for Belgium).
+const cos = Math.cos(51 * Math.PI / 180);
+export function compactness(rings) {
+  const xy = p => [p[1] * cos, p[0]];
+  let area = 0;
+  for (const r of rings) {
+    let a = 0;
+    r.forEach((p, i) => { const [x1, y1] = xy(p), [x2, y2] = xy(r[(i + 1) % r.length]); a += x1 * y2 - x2 * y1; });
+    area += Math.abs(a) / 2; // shoelace formula; sectors have no holes
+  }
+  const perimeter = zoneOutline(rings).reduce((n, [p, q]) => { const [x1, y1] = xy(p), [x2, y2] = xy(q); return n + Math.hypot(x2 - x1, y2 - y1); }, 0);
+  return perimeter ? (4 * Math.PI * area) / perimeter ** 2 : 0;
 }
 
-// All zones for these stops. target: minutes per zone (ZONE_MINUTES). labels: [{name, lat, lon}] for names.
+// All zones for these stops. target: minutes per zone (ZONE_MINUTES).
 // Returns [{id, name, rings, ids: [place ids], centre, mins}], biggest first.
-export function buildZones(stops, sectors, target, labels = []) {
+//   1. Each sector with stops starts as a zone, whole (a busy sector is never cut up).
+//   2. The smallest zone under the target joins a neighbour it shares a stretch of border with (not just a
+//      corner, and never across an empty sector), so every zone stays one connected area. Of the
+//      neighbours that keep the work under target × 1.3, it takes the one giving the roundest shape.
+//   3. A zone is named after the sector that holds most of its stops.
+export function buildZones(stops, sectors, target) {
   const bySector = new Map();
   for (const s of stops) { const i = sectorOf(s, sectors); bySector.set(i, [...(bySector.get(i) || []), s]); }
-  // The pieces: sectors with stops (cut up when too busy), and empty sectors, which only connect.
-  const units = [...bySector.keys()].sort((x, y) => x - y)
-    .flatMap(i => splitUnit({ rings: sectors[i].rings, stops: bySector.get(i), name: sectors[i].name }, target));
-  const nodes = [...units, ...sectors.filter((_, i) => !bySector.has(i)).map(s => ({ rings: s.rings, stops: [] }))];
-  const at = new Map(); // border point → pieces that have it: pieces that share a point touch
-  nodes.forEach((u, i) => u.rings.flat().forEach(p => { const k = key(p); at.set(k, [...(at.get(k) || []), i]); }));
-  const touch = nodes.map(() => new Set());
-  for (const ids of at.values()) for (const i of ids) for (const j of ids) if (i !== j) touch[i].add(j);
-  const full = i => i < units.length;
-  // Two pieces with stops that touch the same empty sector (a park, a stretch of water) count as neighbours.
-  const near = i => {
-    const out = new Set();
-    for (const j of touch[i]) {
-      if (full(j)) out.add(j);
-      else for (const k of touch[j]) if (k !== i && full(k)) out.add(k);
+  const full = [...bySector.keys()].sort((x, y) => x - y);
+  // Which sectors share a border edge: the same two border points in a row (either direction).
+  const edges = new Map();
+  for (const i of full) {
+    for (const r of sectors[i].rings) {
+      r.forEach((p, n) => {
+        const k = [key(p), key(r[(n + 1) % r.length])].sort().join(" ");
+        edges.set(k, [...(edges.get(k) || []), i]);
+      });
     }
-    return out;
-  };
+  }
+  const touch = new Map(full.map(i => [i, new Set()]));
+  for (const ids of edges.values()) for (const i of ids) for (const j of ids) if (i !== j) touch.get(i).add(j);
 
-  let zones = units.map((u, i) => ({ parts: [i], stops: u.stops, mins: zoneMinutes(u.stops) }));
+  let zones = full.map(i => ({ parts: [i], stops: bySector.get(i), mins: zoneMinutes(bySector.get(i)) }));
   const zoneOf = new Map(zones.map(z => [z.parts[0], z]));
-  const neighbours = z => new Set(z.parts.flatMap(i => [...near(i)]).map(i => zoneOf.get(i)).filter(q => q !== z));
+  const rings = z => z.parts.flatMap(i => sectors[i].rings);
+  const neighbours = z => new Set(z.parts.flatMap(i => [...touch.get(i)]).map(i => zoneOf.get(i)).filter(q => q !== z));
 
-  // Grow: the smallest zone under the target joins its smallest neighbour, as long as the result stays
-  // under target × 1.3. A zone that can't join anything never can later (neighbours only grow).
   // ponytail: greedy, not optimal (the exact "max-p regions" problem is hard); good enough for a map.
-  const stuck = new Set();
+  const stuck = new Set(); // a zone that can't join anything never can later: neighbours only grow
   for (;;) {
     const z = zones.filter(q => q.mins < target && !stuck.has(q)).sort((a, b) => a.mins - b.mins)[0];
     if (!z) break;
-    const options = [...neighbours(z)].sort((a, b) => a.mins - b.mins);
-    const fit = options.map(n => ({ n, mins: zoneMinutes([...z.stops, ...n.stops]) })).find(o => o.mins <= target * 1.3);
-    if (!fit) { stuck.add(z); continue; }
-    const m = { parts: [...z.parts, ...fit.n.parts], stops: [...z.stops, ...fit.n.stops], mins: fit.mins };
+    const options = [...neighbours(z)]
+      .map(n => ({ n, mins: zoneMinutes([...z.stops, ...n.stops]) }))
+      .filter(o => o.mins <= target * 1.3)
+      .map(o => ({ ...o, round: compactness([...rings(z), ...rings(o.n)]) }))
+      .sort((a, b) => b.round - a.round || a.mins - b.mins);
+    if (!options.length) { stuck.add(z); continue; }
+    const { n, mins } = options[0];
+    const m = { parts: [...z.parts, ...n.parts], stops: [...z.stops, ...n.stops], mins };
     m.parts.forEach(i => zoneOf.set(i, m));
-    zones = zones.filter(q => q !== z && q !== fit.n).concat(m);
+    zones = zones.filter(q => q !== z && q !== n).concat(m);
   }
 
   zones.sort((p, q) => q.stops.length - p.stops.length || Math.min(...p.parts) - Math.min(...q.parts));
   const used = {};
   return zones.map((z, n) => {
-    const centre = middle(z.stops);
-    // Name: the nearest neighbourhood, else the sector's own name; a one-stop zone is called after its stop.
-    // Repeats get " 2", " 3".
-    let name = units[z.parts[0]].name, best = LABEL_MAX;
-    for (const l of labels) { const d = hav(centre, l); if (d < best) { best = d; name = l.name; } }
-    if (z.stops.length === 1) name = z.stops[0].name;
+    // Name: the sector with most of the zone's stops (ties: the first sector); a one-stop zone: its stop.
+    const most = [...z.parts].sort((a, b) => bySector.get(b).length - bySector.get(a).length || a - b)[0];
+    let name = z.stops.length === 1 ? z.stops[0].name : sectors[most].name;
     used[name] = (used[name] || 0) + 1;
-    return { id: `z${n + 1}`, name: used[name] > 1 ? `${name} ${used[name]}` : name, rings: z.parts.flatMap(i => units[i].rings),
-      ids: z.stops.map(s => s.place_id), centre, mins: Math.round(z.mins) };
+    if (used[name] > 1) name = `${name} ${used[name]}`;
+    return { id: `z${n + 1}`, name, rings: rings(z), ids: z.stops.map(s => s.place_id), centre: middle(z.stops), mins: Math.round(z.mins) };
   });
 }
 

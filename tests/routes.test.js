@@ -2,7 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs";
 import path from "node:path";
-import { orderStops, tripTime, computeWay, buildZones, sectorOf, zoneOutline, parkFor, ZONE_MINUTES } from "../js/routes.js";
+import { orderStops, tripTime, computeWay, buildZones, sectorOf, zoneOutline, parkFor, compactness, ZONE_MINUTES } from "../js/routes.js";
 import { stars, eventWeights } from "../js/logic.js";
 import { readTab, DATA } from "./csv.js";
 
@@ -54,8 +54,8 @@ test("buildZones on the seed data: deterministic, every stop in one zone, zones 
   const z1 = buildZones(stops, sectors, ZONE_MINUTES.M), z2 = buildZones(stops, sectors, ZONE_MINUTES.M);
   assert.deepEqual(z1, z2);
   assert.deepEqual(z1.flatMap(z => z.ids).sort(), stops.map(s => s.place_id).sort());
-  // Merged zones stay under target × 1.3, and busy sectors are cut up: only a single stop can be longer.
-  for (const z of z1) if (z.ids.length > 1) assert.ok(z.mins <= ZONE_MINUTES.M * 1.3, `${z.id} takes ${z.mins} min`);
+  // Merged zones stay under target × 1.3; a single busy sector may be longer (it is never cut).
+  for (const z of z1) if (sectorsOf(z).size > 1) assert.ok(z.mins <= ZONE_MINUTES.M * 1.3, `${z.id} takes ${z.mins} min`);
   const small = buildZones(stops, sectors, ZONE_MINUTES.S), large = buildZones(stops, sectors, ZONE_MINUTES.L);
   assert.ok(small.length > z1.length && z1.length > large.length, `${small.length} / ${z1.length} / ${large.length}`);
 });
@@ -67,23 +67,53 @@ const sq = (r, c) => [[d(51 + r / 100), d(3.7 + c / 100)], [d(51 + r / 100), d(3
 const grid = [0, 1, 2].flatMap(r => [0, 1, 2].map(c => ({ id: `${r}${c}`, rings: [sq(r, c)] })));
 const at = (id, r, c, type = "sci") => ({ place_id: id, name: id, lat: 51.005 + r / 100, lon: 3.705 + c / 100, type });
 
-test("buildZones: only touching sectors merge; an empty sector in between still connects", () => {
-  const row = [0, 1, 2, 3].map(c => ({ id: `0${c}`, rings: [sq(0, c)] })); // 4 squares in a row
-  // 00 and 02 both touch the empty 01, so they merge; 00 and 03 have two empty squares between them.
-  assert.equal(buildZones([at("a", 0, 0), at("b", 0, 2)], row, 999).length, 1);
-  assert.equal(buildZones([at("a", 0, 0), at("b", 0, 3)], row, 999).length, 2);
-  // a small target: nothing merges
-  assert.equal(buildZones([at("a", 0, 0), at("b", 0, 1)], grid, 1).length, 2);
+// The sectors (by name) that a zone's stops lie in.
+const byPlace = new Map(stops.map(p => [p.place_id, p]));
+const sectorsOf = z => new Set(z.ids.map(id => sectors[sectorOf(byPlace.get(id), sectors)].name));
+// How many separate loops an outline has: 1 = one connected area.
+function loops(segs) {
+  const up = new Map(), find = k => { while (up.get(k) !== k) k = up.get(k); return k; };
+  for (const [a, b] of segs) for (const k of [a.join(), b.join()]) if (!up.has(k)) up.set(k, k);
+  for (const [a, b] of segs) up.set(find(a.join()), find(b.join()));
+  return new Set([...up.keys()].map(find)).size;
+}
+
+test("buildZones: zones only merge across a shared border, never via a corner or an empty sector", () => {
+  const row = [0, 1, 2, 3].map(c => ({ id: `0${c}`, name: `0${c}`, rings: [sq(0, c)] })); // 4 squares in a row
+  assert.equal(buildZones([at("a", 0, 0), at("b", 0, 1)], row, 999).length, 1); // side by side: merge
+  assert.equal(buildZones([at("a", 0, 0), at("b", 0, 2)], row, 999).length, 2); // an empty square between
+  assert.equal(buildZones([at("a", 0, 0), at("b", 1, 1)], grid, 999).length, 2); // corners touch only
+  assert.equal(buildZones([at("a", 0, 0), at("b", 0, 1)], grid, 1).length, 2);   // small target: no merge
 });
 
-test("buildZones: a sector with too much work is cut in two halfway between its farthest stops", () => {
-  const one = [{ id: "x", name: "X", rings: [sq(0, 0)] }];
-  const st = [at("a", 0, -0.4), at("b", 0, -0.35), at("c", 0, 0.35), at("d", 0, 0.4)];
-  const z = buildZones(st, one, 12); // 4 stops × 5 min > 12 × 1.3: two halves of 2 stops
-  assert.deepEqual(z.map(q => q.ids.sort()).sort(), [["a", "b"], ["c", "d"]]);
-  // the two halves meet at lon 3.705: the cut points are the same, so each half's outline is a closed box
-  for (const q of z) assert.equal(zoneOutline(q.rings).length, 4);
-  assert.ok(z.every(q => q.rings[0].some(p => p[1] === 3.705)));
+test("buildZones: every zone on the Ghent data is one connected area", () => {
+  for (const size of ["S", "M", "L"]) {
+    for (const z of buildZones(stops, sectors, ZONE_MINUTES[size])) assert.equal(loops(zoneOutline(z.rings)), 1, `${size} ${z.name}`);
+  }
+});
+
+test("buildZones: a busy sector stays one zone", () => {
+  const busy = stops.filter(p => sectors[sectorOf(p, sectors)].name === "Boekentoren").map(p => p.place_id);
+  assert.ok(busy.length > 5);
+  const z = buildZones(stops, sectors, ZONE_MINUTES.S).filter(q => q.ids.some(id => busy.includes(id)));
+  assert.equal(z.length, 1);
+});
+
+test("buildZones: a zone is named after the sector holding most of its stops", () => {
+  for (const z of buildZones(stops, sectors, ZONE_MINUTES.M)) {
+    const stop = byPlace.get(z.ids[0]).name; // a one-stop zone: its stop's name (maybe + " 2")
+    if (z.ids.length === 1) { assert.ok(z.name === stop || z.name.startsWith(`${stop} `), z.name); continue; }
+    const count = {};
+    for (const id of z.ids) { const n = sectors[sectorOf(byPlace.get(id), sectors)].name; count[n] = (count[n] || 0) + 1; }
+    const most = Math.max(...Object.values(count));
+    assert.ok(count[z.name.replace(/ \d+$/, "")] === most, `${z.name}: ${JSON.stringify(count)}`);
+  }
+});
+
+test("compactness: a square beats a strip of three squares", () => {
+  const strip = [sq(0, 0), sq(0, 1), sq(0, 2)];
+  assert.ok(compactness([sq(0, 0)]) > compactness(strip));
+  assert.ok(compactness([sq(0, 0)]) > 0.7 && compactness([sq(0, 0)]) <= Math.PI / 4 + 1e-9);
 });
 
 test("zoneOutline: two squares side by side have 6 border edges (the shared one is inside)", () => {
