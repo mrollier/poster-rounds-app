@@ -132,6 +132,54 @@ event's preset in Filters; a volunteer can still tick them, and they then count 
 - **A new kind of event** (say Climate): add a column `ev:Climate` to Types and fill in 0–3 per type.
 - **A new type of place**: add a row to Types (key, label, colour, weights), then use the key in Places.
 
+## How the stars are made
+
+Each place gets 0, 1, 2 or 3 stars for the event you're promoting: 3★ = do it first, 0★ = not worth a
+poster (hidden). There are three ways a place gets its stars; the first one that applies wins.
+
+1. **An admin set it by hand.** In a place's pop-up, admins see "Stars for AI Safety: 0 1 2 3". That fixes an
+   obvious mistake at once, for this campaign only.
+2. **A learned set** (once the admins have trained the stars, see below). Every place has a **score**, and
+   the score decides the stars by share: the top 10% of places get 3★, the next 15% 2★, the next 25% 1★, and
+   the bottom half 0★. In Ghent that's about 40 / 60 / 100 / 190 places. The lines are fixed when the set is
+   made, so the stars don't shift while volunteers are out. A place added later gets the average score of
+   places of its type and importance.
+3. **Otherwise the type rule** (the section above): the type's weight for the event, minus one for a quiet spot.
+
+### Training the stars (admins)
+
+☰ → **Train the stars**. Say how much time you have (5–25 minutes; about 10 swipes a minute). You see two
+places side by side and swipe towards the one where a poster brings **more of the right people**: the right
+audience *and* how many pass by, in one gut call. Not sure: "About the same". Don't know a place: its "?".
+Each admin works towards about **250 swipes**, over as many sittings as they like; the app remembers where
+you were.
+
+You see 60 places, chosen to cover every type of place, with more of the likely top places, and always the
+places the organiser knows are rated wrong. They're paired like a chess tournament: first at random, then
+places with similar scores, because those comparisons teach the most.
+
+### What happens to the swipes (the "algorithm")
+
+1. **Scores from swipes: like chess ratings.** Every place starts at 0. When a place wins a swipe its score
+   goes up and the loser's goes down: a lot when the win was a surprise (a low-scored place beating a high
+   one), a little when it was expected. Formally this is the *Bradley–Terry model*: the chance that A beats B
+   is 1 / (1 + e^(score B − score A)), and the scores are the ones that make all the swipes most likely. A
+   draw counts as half a win for each. A place with few swipes stays close to 0, so one odd swipe can't send
+   it to the top.
+2. **The other ~330 places: rated by Claude, using your swipes as the yardstick.** From the fitted places,
+   nine "anchor" places are picked, from best to worst. Claude places every other place between two anchors
+   ("better than X, worse than Y"), twice, in a different order each time, and the two answers are averaged.
+   So Claude doesn't use its own scale: it uses yours.
+3. **An honest check.** Twelve of your swiped places are held back from step 1. Claude rates them blind, and
+   we count how often its scores pick the winner of your real swipes, against how often today's type rule
+   does. If Claude doesn't beat the rule, the set isn't used. You also write down your own top 25 before you
+   see the result; the new top 25 must clearly match it better than today's.
+4. **Scores to stars** by the shares above, written to the Scores and Sets tabs. Phones pick it up at the
+   next refresh.
+
+A developer runs steps 1–4 with Claude (`tools/fit-set.mjs`, protocol in `docs/star-sets.md`). Later the
+app could do it on its own; for now a person checks each set before it goes live.
+
 ## A new city
 
 1. **Cities** tab: a row with `city` (as used in Places and Campaigns), `centre_lat`, `centre_lon`, `zoom`

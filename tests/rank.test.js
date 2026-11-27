@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { fitBT, chooseDeck, swissRound, quality, sharesToThresholds, starsFromScore, spearman } from "../js/rank.js";
+import { fitBT, chooseDeck, swissRound, quality, sharesToThresholds, starsFromScore, spearman, swipesToComparisons, placeBetween } from "../js/rank.js";
 import { readTab } from "./csv.js";
 
 // A fixed "random" generator (same every run), so the tests can't flake.
@@ -68,4 +68,20 @@ test("shares: top 10% 3★, next 15% 2★, next 25% 1★, rest 0★", () => {
   const count = { 0: 0, 1: 0, 2: 0, 3: 0 };
   scores.forEach(s => count[starsFromScore(s, set)]++);
   assert.deepEqual(count, { 0: 50, 1: 25, 2: 15, 3: 10 });
+});
+
+test("swipesToComparisons: undo takes back that admin's last swipe of the pair; '?' gives no comparison", () => {
+  const row = (by, l, r, outcome, round = 1) => ({ by, left_id: l, right_id: r, outcome, round: String(round) });
+  const rows = [row("Ann", "a", "b", "left"), row("Ann", "a", "b", "undo"), row("Ann", "a", "b", "right"),
+    row("Bo", "a", "b", "left"), row("Ann", "c", "d", "unknown_left"), row("Bo", "c", "d", "draw")];
+  assert.deepEqual(swipesToComparisons(rows), [{ a: "a", b: "b", y: 0 }, { a: "a", b: "b", y: 1 }, { a: "c", b: "d", y: 0.5 }]);
+});
+
+test("placeBetween: a place Claude puts between two anchors gets a score between theirs", () => {
+  const anchors = [{ score: 3 }, { score: 1 }, { score: -1 }]; // best first
+  assert.equal(placeBetween(anchors, 0, "middle"), 2);
+  assert.equal(placeBetween(anchors, 0, "closer_top"), 2.5);
+  assert.equal(placeBetween(anchors, 1, "closer_bottom"), -0.5);
+  assert.equal(placeBetween(anchors, -1, "middle"), 4);   // above the best anchor
+  assert.equal(placeBetween(anchors, 2, "middle"), -2);   // below the worst
 });

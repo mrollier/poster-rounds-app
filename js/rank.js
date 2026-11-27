@@ -132,3 +132,30 @@ export function sharesToThresholds(scores, { t3 = 0.10, t2 = 0.25, t1 = 0.50 } =
   return { t3: at(t3), t2: at(t2), t1: at(t1) };
 }
 export const starsFromScore = (score, set) => (score >= set.t3 ? 3 : score >= set.t2 ? 2 : score >= set.t1 ? 1 : 0);
+
+// ---------- From the Swipes tab to comparisons (tools/fit-set.mjs) ----------
+
+// Rows from the Swipes tab, in the order they were saved. An "undo" takes back that admin's latest
+// swipe of the same pair; "?" (unknown_left / unknown_right) says nothing about which is better.
+export function swipesToComparisons(rows) {
+  const kept = [];
+  for (const r of rows) {
+    if (r.outcome !== "undo") { kept.push(r); continue; }
+    for (let i = kept.length - 1; i >= 0; i--) {
+      const k = kept[i];
+      if (k.by === r.by && k.left_id === r.left_id && k.right_id === r.right_id) { kept.splice(i, 1); break; }
+    }
+  }
+  const Y = { left: 1, right: 0, draw: 0.5 };
+  return kept.filter(r => r.outcome in Y).map(r => ({ a: r.left_id, b: r.right_id, y: Y[r.outcome] }));
+}
+
+// Claude rates a place by putting it between two anchor places (anchors: fitted places, best first):
+// k = the anchor just above it (−1 = above the best), pos = closer_top / middle / closer_bottom.
+export function placeBetween(anchors, k, pos) {
+  const t = { closer_top: 0.25, middle: 0.5, closer_bottom: 0.75 }[pos] ?? 0.5;
+  const n = anchors.length, gap = n > 1 ? (anchors[0].score - anchors[n - 1].score) / (n - 1) : 1;
+  if (k < 0) return anchors[0].score + (1 - t) * gap;
+  if (k >= n - 1) return anchors[n - 1].score - t * gap;
+  return anchors[k].score - t * (anchors[k].score - anchors[k + 1].score);
+}

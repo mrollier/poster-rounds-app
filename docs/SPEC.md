@@ -58,6 +58,15 @@ Shown as ★★☆ everywhere; the word "priority" is not used. The **preset** o
 types with weight > 0: those are ticked in Filters when you pick it, the rest unticked (you can tick
 them by hand). Unit tests: the seed data gives 32 / 42 / 124 places with 3 / 2 / 1 stars for AI Safety.
 
+### 2.1b Learned star sets (round 5)
+
+Stars per place, the first that applies: an admin's override for the campaign (Overrides tab) → a learned
+set (Scores + Sets tabs: `set_id` = the campaign_id, else `default:<event_type>`; only for the campaign's own
+kind of event) → the type rule above. A learned set's score becomes stars by its frozen lines `t3/t2/t1`
+(top 10% / 25% / 50% when it was made); a place without a score gets the average of its type and importance.
+With a learned set the type preset in Filters is off. Sets are made from admins' swipes (README "How the
+stars are made", `docs/star-sets.md`, `js/rank.js`, `tools/fit-set.mjs`).
+
 ### 2.2 City boards and cleaning cycles
 
 Places of type `boards` are city poster boards that the city cleans on a schedule
@@ -90,6 +99,10 @@ Apps Script web app bound to the sheet. Read the header comment of `Code.gs`.
 - `POST` body (JSON, **sent as `Content-Type: text/plain`** to avoid a CORS preflight):
   - `{code, name, action:"result", campaign_id, place_id, cycle, status?, posters?, note?}` – upsert; omitted fields keep their value
   - `{code, name, action:"addPlace", campaign_id, city, place_name, type, tags, importance, access, posters, lat, lon, address?, notes?, location_source:"gps"|"tap"}`
+  - `{code, name, action:"swipe", deck_version, round, left_id, right_id, outcome: left|right|draw|unknown_left|unknown_right|undo}` – admins only; appended to Swipes
+  - `{code, name, action:"override", place_id, stars: 0–3 or ""}` – admins only; appended to Overrides (latest per place wins, "" clears)
+- bootstrap also returns `set` (`{set_id, t3, t2, t1, scores}` or null), `overrides` (`{place_id: stars}`) and,
+  for admins, `swipes` (the campaign's Swipes rows). Missing tabs count as empty.
 - Errors come back as `{ok:false, error}` with HTTP 200 (Apps Script can't set status codes).
 - The web-app URL is public (it's in the site's code). The **codes** protect writes and reads.
 
